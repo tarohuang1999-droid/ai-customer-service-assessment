@@ -88,8 +88,8 @@ flowchart LR
 | 題目 | 選項 | 用途 |
 | --- | --- | --- |
 | 細項分類 | 18 個細項，例如 `product/travel_rule`、`order_change/booking_change` | 決定預設 route |
-| 急迫度 | high／medium／low（high：信件提到 72 小時內出發或使用，或已在旅途中） | 條件規則、佇列排序 |
-| 影響程度 | high／medium／low（high：金錢爭議或損失、揚言申訴、人身安全） | 條件規則、佇列排序 |
+| 急迫度 | high／medium／low，只看時間點（high：事情在 3 天內發生，或客戶已在旅途中） | 條件規則、佇列排序 |
+| 影響程度 | high／medium／low，只看後果（high：金錢損失或爭議、揚言對外申訴、人身安全） | 條件規則、佇列排序 |
 
 ### 5.2 route 怎麼決定
 

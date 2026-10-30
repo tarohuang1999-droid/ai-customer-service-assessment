@@ -69,25 +69,25 @@ description = "寄件者：與旅遊服務無關的來源。內容：廣告推�
 description = "客戶狀態：不明。內容：只有一兩句話，沒有說明是哪個行程或訂單、想做什麼，看不出要處理的事情，需要由客服判斷後再回覆。"
 
 [urgency_level]
-instructions = "根據工單中提到的出發或使用時間，以及客戶是否已在旅途中，判斷這件事需要多快處理。"
+instructions = "依信件中提到的出發或使用日期，以及客戶目前是否已在旅途中，判斷事情會在多久之後發生。"
 
 [urgency_level.options.high]
-description = "信件提到 72 小時內（今天、明天、後天）要出發或使用，或客戶已在旅途中需要即時協助。"
+description = "事情在 3 天內發生：出發或使用日期是今天、明天或後天，或客戶人已在旅途中。"
 
 [urgency_level.options.medium]
-description = "信件提到兩週內要出發或使用，或客戶提到短期期限，例如付款期限、報帳期限。"
+description = "事情在 3 天到 2 週之間發生：出發或使用日期在這段期間，或客戶提到幾天內要完成的期限，例如付款或報帳。"
 
 [urgency_level.options.low]
-description = "沒有近期時間壓力：一般詢問、出發日在兩週以後、事後反映、非客服信件。"
+description = "信件沒有提到近期的日期：一般詢問、還沒決定行程、出發日在 2 週以後、事後反映、與行程無關的信件。"
 
 [impact_level]
-instructions = "根據工單內容，判斷對客戶與公司的業務或財務影響程度。"
+instructions = "依這件事對客戶與公司造成的後果，判斷影響程度。"
 
 [impact_level.options.high]
-description = "金錢爭議或損失（重複扣款、求償、高額退費）、揚言向外部申訴或公開、人身安全。"
+description = "已經或可能造成金錢損失或爭議，例如重複扣款、要求賠償、高額退費；客戶表示要向外部單位申訴或公開；或涉及人身安全。"
 
 [impact_level.options.medium]
-description = "需要修改訂單或調整費用（改期、取消、退費、資料更正），或帳號與付款問題。"
+description = "需要修改訂單、調整費用，或處理帳號、付款的問題，雙方對處理方式沒有爭議。"
 
 [impact_level.options.low]
-description = "資訊詢問或非客服信件，不涉及訂單或費用變動。"
+description = "只需要提供資訊或轉交其他部門，訂單與金錢都不需要變動。"
