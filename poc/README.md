@@ -1,6 +1,6 @@
 # 工單分流 PoC（Ticket Triage Pipeline）
 
-讀取 `data/sample_tickets.csv`（48 筆），對每張工單輸出 `category`、`sub_category`、`route`（auto／human）、`priority` 與判斷依據。類別、route、priority 的定義以 [category-priority-spec.md](../category-priority-spec.md) 為準。
+讀取 `data/sample_tickets.csv`（48 筆），對每張工單輸出 `category`、`sub_category`、`route`（auto／human）、佇列排序與判斷依據。類別與 route 的定義以 [category-priority-spec.md](../category-priority-spec.md) 為準。
 
 - 只使用 Python 標準庫，沒有第三方套件。
 - 只驗證「分流」這一段，不生成回覆草稿。
@@ -43,8 +43,8 @@ JEV_API_KEY=... uv run python triage.py --model jev
 
 | 檔案 | 內容 |
 | --- | --- |
-| `triage_result.csv` | 48 筆：`ticket_id, category, sub_category, route, priority, confidence, urgency, impact, reason, model` |
-| `review.html` | 執行摘要（類別分佈、需人工比例、優先級分佈）、資料發現、評估結果、可篩選的逐筆檢視 |
+| `triage_result.csv` | 48 筆，依佇列排序：`queue_rank, ticket_id, category, sub_category, route, confidence, urgency, impact, reason, model` |
+| `review.html` | 執行摘要（類別分佈、需人工比例、急迫度與影響程度分佈）、資料發現、評估結果、可篩選的逐筆檢視 |
 | `run.log` | 每筆的模型輸入、3 題的機率輸出與 `reason` |
 
 ---
@@ -70,28 +70,22 @@ JEV_API_KEY=... uv run python triage.py --model jev
 flowchart LR
     In([工單 CSV]) --> Pre[前處理]
     Pre --> M[導入決策模型分流]
-    M -->|逾時或錯誤| Fail(系統報錯)
-    M --> Map[routing]
+    M -->|逾時或錯誤| Fail(系統報錯：寫 log、轉人工)
+    M --> Map[routing：對應表決定 route]
     Map --> Out([triage_result.csv])
 ```
 
 所有判斷都在兩個設定檔：
 
-- **`config/labels.toml`**：模型的 3 題選擇題。選項描述只寫通用定義與邊界（「不含」），不含任何樣本內容。
-- **`config/routing.toml`**：對應表。
+- **`config/labels.toml`**：模型的 3 題選擇題（細項分類、急迫度、影響程度）。選項描述只寫通用定義與邊界，不含任何樣本內容。
+- **`config/routing.toml`**：
   - `[route]`：18 個細項各自的 route。
-  - `[priority_matrix]`：急迫度 × 影響程度對應的優先級。
-  - `[priority_floor]`：細項的優先級下限，例如旅途異常至少 P4、求償至少 P3。
-  - `[priority_fixed]`：非客服固定為 P1。
   - `confidence_threshold`：分類信心門檻，預設 0.70。
+  - `level_conf_threshold`：排序時，急迫度、影響程度的信心低於此值視為 low。
 
-| 急迫度 \ 影響程度 | high | medium | low |
-| --- | :---: | :---: | :---: |
-| high | P4 | P4 | P4 |
-| medium | P3 | P2 | P2 |
-| low | P3 | P2 | P2 |
+**route 原則**：auto = AI 能決定回覆的絕大部分內容，而且不急迫；其餘都是 human。auto 有兩種：草擬（客服確認後送出），以及非客服信件的自動轉交或歸檔。
 
-**route 原則**：只需知識庫或唯讀訂單資料就能回答的，走 `auto`（產出草稿，客服確認後送出）；需要在既有系統寫入，或需要調查、判斷責任的，走 `human`。18 個細項中有 10 個預設為 `human`。
+**佇列排序**：不設優先等級，依急迫度 → 影響程度 → 進件時間排序，輸出的 `queue_rank` 就是處理順序。
 
 **`reason` 格式**：`分類信心 0.88`；信心不足時為 `分類信心 0.55；信心不足轉人工`。
 
@@ -110,7 +104,7 @@ flowchart LR
 | 同一寄件人再次來信催單 | TK-1013 → TK-1031 | 只記錄；正式環境由工單系統以客戶 ID 判斷 |
 | 內文夾帶身分證、手機、銀行帳號 | TK-1023 | 地端模型不出內網，本階段不遮罩；log 不存全文 |
 | 寄件人是公司、記者等非旅客 | TK-1017、TK-1047 | 模型判斷為 `other/business` 轉交 |
-| 日期沒有年份 | TK-1007（6 月來信提到 3 月出發） | 模型輸入含進件時間，由模型推論 |
+| 日期沒有年份 | TK-1007（6 月來信提到 3 月出發） | 不處理：急迫度依信件內容判斷 |
 | 英文信件 | TK-1012 | 直接交給模型 |
 | 極短內文 | TK-1024、TK-1033 | 交給模型；看不出訴求時歸 `unclear/insufficient_info` |
 
@@ -120,7 +114,7 @@ flowchart LR
 
 ## 6. 評估
 
-`data/expected_labels.csv` 是依 spec 人工標註的 48 筆標準答案，執行時自動比對：主類別、細項、route、priority 準確率，以及 **False Auto**（應 human 卻判 auto，上線前必須為 0）。
+`data/expected_labels.csv` 是依 spec 人工標註的 48 筆標準答案，執行時自動比對：主類別、細項、route 準確率，以及 **False Auto**（應 human 卻判 auto，上線前必須為 0）。
 
 **限制**：這 48 筆同時是設計類別時參考的資料，準確率只代表開發集。為了避免「看答案」，`labels.toml` 只寫通用定義，不含任何樣本內容；正式驗收仍需 50–100 筆未參與設計的歷史工單（answer Q2 §4）。
 
@@ -149,7 +143,7 @@ flowchart LR
 
 ## 9. 如果要進正式環境，接下來最重要的三件事
 
-1. **串接工單系統與訂單唯讀 API，補上結構化規則**：用訂單金額、出發日、未結案件狀態加上確定性的轉人工與優先級規則，並加入 API 限流排隊。
+1. **串接工單系統與訂單唯讀 API，補上結構化規則**：用訂單金額、出發日、未結案件狀態加上確定性的轉人工與排序規則，並加入 API 限流排隊。
 2. **用真實歷史工單建立評估集並校準**：標註 50–100 筆未參與設計的歷史工單，驗證 False Auto = 0 與信心門檻；上線後把客服對草稿的評分回饋到評估集。
 3. **確認合規邊界**：與法務確認地端部署的核准範圍、log 保存規則；若需要外部模型服務，先完成供應商評估並加入個資遮罩。
 
@@ -167,10 +161,10 @@ poc/
 ├── pipeline/
 │   ├── preprocess.py      # 欄位裁剪、NFKC、HTML、縮排、簽名檔；組成模型輸入
 │   ├── models.py          # 決策模型 client（llama.cpp／Jev）與 mock
-│   └── router.py          # 依 routing.toml 決定 route 與 priority
+│   └── router.py          # 依 routing.toml 決定 route，並排序佇列
 ├── config/
 │   ├── labels.toml        # 3 題選擇題的選項定義
-│   └── routing.toml       # route 對應、優先級對應表、信心門檻
+│   └── routing.toml       # route 對應、信心門檻
 ├── data/
 │   ├── sample_tickets.csv
 │   └── expected_labels.csv
