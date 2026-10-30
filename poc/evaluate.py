@@ -48,26 +48,21 @@ def compute_eval_metrics(decisions: list[TriageDecision], gold: dict[str, dict[s
 
 
 def find_data_issues(tickets: list[Ticket]) -> list[tuple[str, int, str]]:
-    """資料發現：只有前兩項有實際處理，其餘是觀察，不影響分流。"""
+    """資料發現：只列有實際處置的問題。"""
     out: list[tuple[str, int, str]] = []
     extra = sum(1 for t in tickets if t.extra_empty_cols)
     if extra:
-        out.append(("試算表匯出後每列尾端多出空白欄位", extra, "處理：只讀取前 6 個欄位"))
+        out.append(("試算表匯出後每列尾端多出空白欄位", extra, "只讀取前 6 個欄位"))
     html_n = sum(1 for t in tickets if t.had_html)
     if html_n:
-        out.append(("HTML 標籤（如 <br>）", html_n, "處理：移除標籤，<br> 轉換行"))
-    observations = [
-        ("全形英數字", sum(1 for t in tickets if re.search(r"[\uff10-\uff19\uff21-\uff3a\uff41-\uff5a]", t.subject + t.body))),
-        ("手機簽名檔", sum(1 for t in tickets if re.search(r"從我的\s*\S+\s*傳送|Sent from my", t.body))),
-        ("內文夾帶證號、手機或銀行帳號", sum(1 for t in tickets if _PII_RE.search(t.body))),
-        ("英文信件", sum(1 for t in tickets if not re.search(r"[\u4e00-\u9fff]", t.body))),
-        ("內文少於 10 字", sum(1 for t in tickets if len(t.body) < 10)),
-    ]
+        out.append(("HTML 標籤（如 <br>）", html_n, "移除標籤，<br> 轉換行"))
+    pii = sum(1 for t in tickets if _PII_RE.search(t.body))
+    if pii:
+        out.append(("內文夾帶證號、手機或銀行帳號", pii, "模型地端部署、不出內網；log 不存信件全文"))
     names = Counter(t.customer_name for t in tickets)
-    observations.append(("同一寄件人名稱出現多次", sum(c for c in names.values() if c > 1)))
-    for label, cnt in observations:
-        if cnt:
-            out.append((label, cnt, "觀察，不處理：模型可直接閱讀"))
+    dup = sum(c for c in names.values() if c > 1)
+    if dup:
+        out.append(("同一寄件人再次來信催單", dup, "PoC 不合併；正式環境由工單系統以客戶 ID 判斷未結案件"))
     return out
 
 
