@@ -14,7 +14,7 @@ TK-1012,order_change,booking_change,P2,human
 TK-1013,system_issue,checkout_error,P3,human
 TK-1014,product,travel_rule,P2,auto
 TK-1015,order_change,booking_change,P3,human
-TK-1016,system_issue,account_access,P3,human
+TK-1016,system_issue,account_access,P2,human
 TK-1017,other,business,P1,human
 TK-1018,product,travel_rule,P2,auto
 TK-1019,complaint,compensation_claim,P3,human
