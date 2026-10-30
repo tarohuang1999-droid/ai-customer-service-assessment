@@ -65,9 +65,8 @@ description = "寄件者：廠商、合作夥伴、媒體或求職者，以工�
 [classification.options."other/irrelevant"]
 description = "寄件者：與旅遊服務無關的來源。內容：廣告推銷、系統測試、自動回覆或退信通知，不需要回覆。"
 
-# unclear
-[classification.options."unclear/insufficient_info"]
-description = "客戶狀態：不明。內容：只有一兩句話，沒有說明是哪個行程或訂單、想做什麼，需要先請客戶補充資料才能處理。"
+[classification.options."other/unclear"]
+description = "客戶狀態：不明。內容：只有一兩句話，沒有說明是哪個行程或訂單、想做什麼，看不出要處理的事情，需要由客服判斷後再回覆。"
 
 [urgency_level]
 instructions = "根據工單中提到的出發或使用時間，以及客戶是否已在旅途中，判斷這件事需要多快處理。"

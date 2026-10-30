@@ -18,7 +18,6 @@ max_body_chars = 300             # 送入模型的內文長度上限（保留開
 "complaint/service_complaint" = { urgency = ["low", "medium"], impact = ["low", "medium"] }
 "other/business"              = { urgency = ["low", "medium"], impact = ["low", "medium"] }
 "other/irrelevant"            = { urgency = ["low", "medium"], impact = ["low", "medium"] }
-"unclear/insufficient_info"   = { urgency = ["low", "medium"], impact = ["low", "medium"] }
 
 # ── mode = "risk"：風險分數（比較用）────────────────────────────────
 # 細項先依 [route] 取得預設 route；風險分數 ≥ threshold 時改為 human。
@@ -48,4 +47,3 @@ threshold = 0.6
 "other/business" = "auto"
 "other/irrelevant" = "auto"
 "other/unclear" = "human"
-"unclear/insufficient_info" = "auto"

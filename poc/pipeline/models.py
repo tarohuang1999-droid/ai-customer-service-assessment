@@ -240,7 +240,7 @@ class MockDecisionModel:
         "complaint/compensation_claim": ["賠償", "求償", "退還", "道歉", "消保官", "申訴", "損失"],
         "other/business": ["報價單", "合作", "業配", "採訪", "記者", "應徵", "履歷", "職缺", "包車"],
         "other/irrelevant": ["廣告", "博弈", "優惠活動", "測試", "自動回覆"],
-        "unclear/insufficient_info": [],
+        "other/unclear": [],
     }
     _URGENCY = {"high": ["今天", "明天", "明日", "今晚", "後天", "旅途中", "現在人在"], "medium": ["下週", "急", "期限", "截止", "報帳"]}
     _IMPACT = {
@@ -263,7 +263,7 @@ class MockDecisionModel:
                 scores[key] += sum(1.0 for w in words if w in state_str)
         body_len = len(state_str.split("內文：", 1)[-1])
         if body_len < 8:
-            scores["unclear/insufficient_info"] += 1.5
+            scores["other/unclear"] += 1.5
 
         total = sum(scores.values())
         probs = {k: round(v / total, 4) for k, v in scores.items()}

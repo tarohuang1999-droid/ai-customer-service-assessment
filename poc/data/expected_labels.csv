@@ -31,7 +31,7 @@ TK-1029,complaint,compensation_claim,human
 TK-1030,system_issue,checkout_error,human
 TK-1031,system_issue,checkout_error,human
 TK-1032,product,custom_request,human
-TK-1033,unclear,insufficient_info,auto
+TK-1033,other,unclear,human
 TK-1034,other,business,auto
 TK-1035,order_inquiry,order_status,auto
 TK-1036,product,product_info,auto
