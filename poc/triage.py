@@ -26,14 +26,14 @@ def write_triage_csv(path: Path, decisions: list[TriageDecision]) -> None:
     with path.open("w", encoding="utf-8", newline="") as f:
         w = csv.writer(f)
         w.writerow(["queue_rank", "ticket_id", "category", "sub_category", "route", "confidence",
-                    "urgency", "impact", "reason", "model"])
+                    "urgency", "impact", "risk", "reason", "model"])
         for d in decisions:
             w.writerow([d.queue_rank, d.ticket_id, d.category, d.sub_category, d.route, f"{d.confidence:.4f}",
-                        f"{d.urgency}({d.urgency_conf:.2f})", f"{d.impact}({d.impact_conf:.2f})", d.reason, d.model])
+                        f"{d.urgency}({d.urgency_conf:.2f})", f"{d.impact}({d.impact_conf:.2f})", f"{d.risk:.2f}", d.reason, d.model])
 
 
 def run(input_csv: Path, output_dir: Path, config_dir: Path, model_name: str, endpoint: str | None,
-        api_key: str | None, threshold: float, gold_csv: Path | None) -> Path:
+        api_key: str | None, gold_csv: Path | None) -> Path:
     labels = load_toml(config_dir / "labels.toml")
     routing = load_toml(config_dir / "routing.toml")
     result_dir = output_dir / f"result-{datetime.now():%Y%m%d_%H%M%S}"
@@ -47,11 +47,14 @@ def run(input_csv: Path, output_dir: Path, config_dir: Path, model_name: str, en
                 print(msg, flush=True)
             log_f.write(msg + "\n")
 
-        log(f"[START] model={model.name} tickets={len(tickets)} threshold={threshold:.2f}")
+        log(f"[START] model={model.name} tickets={len(tickets)} "
+            f"classification_threshold={routing['classification_threshold']} risk={routing['risk']}")
         decisions: list[TriageDecision] = []
         for i, t in enumerate(tickets, 1):
-            d = triage_one(t, model, labels, routing, threshold)
+            d = triage_one(t, model, labels, routing)
             decisions.append(d)
+            if d.reason.startswith("模型異常"):
+                log(f"[ERROR] {t.ticket_id} {d.reason}")
             log(f"[{i:02d}/{len(tickets)}] {t.ticket_id} {d.total_ms:.0f}ms -> {d.category}/{d.sub_category} "
                 f"route={d.route} urgency={d.urgency} impact={d.impact} | {d.reason}")
             log(f"  [INPUT] {json.dumps(d.model_input, ensure_ascii=False)}", console=False)
@@ -85,14 +88,13 @@ def main() -> None:
                     help="llamacpp/clef：地端決策模型；jev：遠端 API（僅限虛構資料）；mock：離線基準")
     ap.add_argument("--endpoint", default=None, help="覆寫 /v1/systemone 端點")
     ap.add_argument("--api-key", default=None, help="Jev API token")
-    ap.add_argument("--threshold", type=float, default=0.70, help="分類信心門檻")
     ap.add_argument("--eval", default=str(base / "data" / "expected_labels.csv"), help="標準標註 CSV")
     ap.add_argument("--serve", action="store_true", help="執行後以本機伺服器開啟 review.html")
     ap.add_argument("--port", type=int, default=8000)
     a = ap.parse_args()
 
     result_dir = run(Path(a.input), Path(a.output_dir), Path(a.config_dir), a.model, a.endpoint,
-                     a.api_key, a.threshold, Path(a.eval))
+                     a.api_key, Path(a.eval))
     print(f"[OK] 輸出：{result_dir}")
     if a.serve:
         handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=str(result_dir))

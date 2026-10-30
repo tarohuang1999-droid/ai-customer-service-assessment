@@ -45,11 +45,13 @@ class _SystemOneHTTPBase:
     The model returns a probability per option and a confidence; it generates no text.
     """
 
-    def __init__(self, name: str, endpoint: str, headers: dict[str, str], timeout: float = 30.0) -> None:
+    def __init__(self, name: str, endpoint: str, headers: dict[str, str], timeout: float = 30.0,
+                 retries: int = 1) -> None:
         self.name = name
         self.endpoint = endpoint
         self.headers = headers
         self.timeout = timeout
+        self.retries = retries  # 失敗時重試次數
 
     def _post_systemone(
         self,
@@ -60,26 +62,31 @@ class _SystemOneHTTPBase:
     ) -> dict[str, Any]:
         payload = {"state": state_str, "questions": questions}
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-        req = urllib.request.Request(self.endpoint, data=body, headers=self.headers, method="POST")
-        t0 = time.perf_counter()
-        try:
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-        except urllib.error.HTTPError as http_err:
-            err_body = http_err.read().decode("utf-8", errors="replace")
-            raise RuntimeError(f"HTTP {http_err.code} in stage={stage_name}: {err_body}") from http_err
-
-        ms = round((time.perf_counter() - t0) * 1000, 1)
-        traces.append(
-            {
+        attempts = self.retries + 1
+        last_err: Exception | None = None
+        for attempt in range(1, attempts + 1):
+            req = urllib.request.Request(self.endpoint, data=body, headers=self.headers, method="POST")
+            t0 = time.perf_counter()
+            try:
+                with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                    data = json.loads(resp.read().decode("utf-8"))
+                data["answers"][stage_name]["choice"]  # 檢查輸出格式
+            except urllib.error.HTTPError as e:
+                last_err = RuntimeError(f"HTTP {e.code}: {e.read().decode('utf-8', errors='replace')[:200]}")
+                continue
+            except Exception as e:  # 逾時、連線失敗、輸出格式錯誤
+                last_err = e
+                continue
+            traces.append({
                 "stage": stage_name,
-                "ms": ms,
+                "ms": round((time.perf_counter() - t0) * 1000, 1),
+                "attempt": attempt,
                 "input_tokens": data.get("usage", {}).get("input_tokens"),
                 "input": payload,
                 "output": data.get("answers", {}),
-            }
-        )
-        return data
+            })
+            return data
+        raise RuntimeError(f"stage={stage_name} attempts={attempts} {type(last_err).__name__}: {last_err}")
 
     def classify(self, state_str: str, labels_cfg: dict[str, Any]) -> ClassificationResult:
         t0 = time.perf_counter()
@@ -162,8 +169,8 @@ class _SystemOneHTTPBase:
         except Exception as exc:
             elapsed = round((time.perf_counter() - t0) * 1000, 1)
             return ClassificationResult(
-                category="unclear",
-                sub_category="insufficient_info",
+                category="other",
+                sub_category="unclear",
                 confidence=0.0,
                 urgent_level="low",
                 urgent_conf=0.0,
@@ -172,7 +179,7 @@ class _SystemOneHTTPBase:
                 model_name=self.name,
                 stage_classification_ms=elapsed,
                 model_traces=traces,
-                error=f"{type(exc).__name__}: {exc}",
+                error=str(exc) if isinstance(exc, RuntimeError) else f"{type(exc).__name__}: {exc}",
             )
 
 
