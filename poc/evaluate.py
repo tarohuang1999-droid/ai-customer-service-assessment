@@ -13,7 +13,7 @@ from typing import Any
 from pipeline.preprocess import Ticket
 from pipeline.router import TriageDecision
 
-FIELDS = ("category", "sub_category", "route", "priority")
+FIELDS = ("category", "sub_category", "route")
 CLEANING = {
     "fullwidth": ("全形英數字", "NFKC 轉半形"),
     "html_tag": ("HTML 標籤（如 <br>）", "清除標籤，<br> 轉換行"),
@@ -40,7 +40,7 @@ def compute_eval_metrics(decisions: list[TriageDecision], gold: dict[str, dict[s
         bins[label] = {"n": len(sel), "acc": round(ok / len(sel) * 100, 1) if sel else None}
     return {
         "total": len(rows), "cat_acc": acc["category"], "sub_acc": acc["sub_category"],
-        "route_acc": acc["route"], "prio_acc": acc["priority"],
+        "route_acc": acc["route"],
         "false_auto": sum(d.route == "auto" and g["route"] == "human" for d, g in rows),
         "false_human": sum(d.route == "human" and g["route"] == "auto" for d, g in rows),
         "conf_bins": bins,
@@ -104,7 +104,9 @@ def write_review_html(out_path: Path, tickets: list[Ticket], decisions: list[Tri
     routes = Counter(d.route for d in decisions)
     cats = Counter(d.category for d in decisions).most_common()
     subs = Counter(f"{d.category} / {d.sub_category}" for d in decisions).most_common()
-    prios = Counter(d.priority for d in decisions)
+    gate = 0.70
+    urg = Counter(d.urgency if d.urgency_conf >= gate else "low" for d in decisions)
+    imp = Counter(d.impact if d.impact_conf >= gate else "low" for d in decisions)
     human_pct = routes["human"] / n * 100
 
     tiles = [
@@ -120,7 +122,6 @@ def write_review_html(out_path: Path, tickets: list[Ticket], decisions: list[Tri
             _tile("主類別準確率", f"{metrics['cat_acc']}%"),
             _tile("細項準確率", f"{metrics['sub_acc']}%"),
             _tile("route 準確率", f"{metrics['route_acc']}%"),
-            _tile("priority 準確率", f"{metrics['prio_acc']}%"),
             _tile("False Auto", f"{'✓' if fa == 0 else '✕'} {fa}", "應 human 卻判 auto，必須為 0",
                   "good" if fa == 0 else "critical"),
             _tile("False Human", metrics["false_human"], "應 auto 卻判 human（較保守）"),
@@ -136,7 +137,7 @@ def write_review_html(out_path: Path, tickets: list[Ticket], decisions: list[Tri
         diff = [f for f in FIELDS if g and getattr(d, f) != g[f]]
         records.append({
             "id": d.ticket_id, "created": t.created_at, "channel": t.channel, "subject": t.subject, "body": t.body,
-            "cat": d.category, "sub": d.sub_category, "route": d.route, "prio": d.priority,
+            "rank": d.queue_rank, "cat": d.category, "sub": d.sub_category, "route": d.route,
             "conf": round(d.confidence, 2), "urg": d.urgency, "imp": d.impact, "reason": d.reason,
             "gold": {f: g[f] for f in FIELDS} if g else None, "diff": diff,
         })
@@ -152,7 +153,8 @@ def write_review_html(out_path: Path, tickets: list[Ticket], decisions: list[Tri
         "%%AUTO_N%%": str(routes["auto"]),
         "%%CAT_BARS%%": _bars(cats, n),
         "%%SUB_BARS%%": _bars(subs, n),
-        "%%PRIO_BARS%%": _bars([(f"{p}{'（最高）' if p == 'P4' else ''}", prios[p]) for p in ("P4", "P3", "P2", "P1")], n),
+        "%%URG_BARS%%": _bars([(lv, urg[lv]) for lv in ("high", "medium", "low")], n),
+        "%%IMP_BARS%%": _bars([(lv, imp[lv]) for lv in ("high", "medium", "low")], n),
         "%%ISSUES%%": _table(["發現", "件數", "處置"], [list(r) for r in find_data_issues(tickets)]),
         "%%EVAL_TILES%%": eval_tiles,
         "%%BINS%%": bins_html,

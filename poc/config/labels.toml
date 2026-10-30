@@ -1,13 +1,13 @@
 # 決策模型的 3 題選擇題（定義來源：../category-priority-spec.md）
 # 描述只寫通用定義與邊界，不得寫入任何樣本內容。
-# route 與 priority 的對應表在 routing.toml。
+# route 對應表與分流參數在 routing.toml。
 
 [classification]
 instructions = "根據客服工單的主旨與內文，選出客戶主要訴求所屬的『主類別/細項』。一封信有多個訴求時，選風險最高的訴求。"
 
 # product：不需訂單資料即可回答
 [classification.options."product/product_info"]
-description = "已公開的產品資訊：行程內容、費用包含項目、計價方式、加購項目的價格、票券兌換與使用方式、艙房或座位的選擇規則。不含：要求客服代為修改已成立的訂單；需另外報價或個案確認的需求。"
+description = "已公開的產品資訊：行程內容、費用包含項目、計價方式、票券兌換與使用方式、艙房或座位的選擇規則。不含：已成立訂單的內容查詢；需另外報價或個案確認的需求。"
 
 [classification.options."product/travel_rule"]
 description = "旅遊規定詢問：證照效期、簽證與入境規定、天候或不可抗力時是否出團與退費通則。不含：已出發後正在發生的異常。"
@@ -16,11 +16,11 @@ description = "旅遊規定詢問：證照效期、簽證與入境規定、天�
 description = "退改規定詢問：取消或改期的手續費比例、定型化契約級距。不含：客戶已決定並申請取消；沒有說明情境、無法判斷意圖的極短詢問。"
 
 [classification.options."product/custom_request"]
-description = "客製需求：需另外報價或向供應商個案確認，例如旅客的團體或企業包團報價、無障礙設施、特殊餐食。不含：詢問既有選項或規則是否允許；廠商寄來的報價。"
+description = "客製化服務：需另外報價或向供應商個案確認，例如團體或企業包團、無障礙安排、特殊餐食。不含：詢問既有選項或規則是否允許。"
 
 # order_inquiry：需唯讀查詢訂單或會員資料
 [classification.options."order_inquiry/order_status"]
-description = "訂單狀態查詢：訂單是否成立、行前通知或行程表何時寄送。不含：要求修改訂單。"
+description = "已成立訂單的狀態與內容查詢：訂單是否成立、行前通知或行程表何時寄送、已訂行程可加購項目的價格與期限。不含：要求客服修改訂單。"
 
 [classification.options."order_inquiry/refund_status"]
 description = "退款進度查詢：已申請的退款處理到哪裡、多久入帳。不含：申請退款。"
@@ -58,7 +58,7 @@ description = "求償申訴：要求賠償、退還費用、正式道歉，或�
 
 # other：非客服
 [classification.options."other/business"]
-description = "寄件者不是旅客：供應商或合作廠商的報價與提案、媒體採訪、求職應徵，需要轉交其他部門。不含：旅客的團體旅遊詢價。"
+description = "對外往來：寄件者不是旅客，例如供應商或合作廠商、媒體、求職者，需轉交其他部門。不含：旅客的團體旅遊詢價。"
 
 [classification.options."other/irrelevant"]
 description = "無關信件：廣告、測試單、自動回覆。"
@@ -68,13 +68,13 @@ description = "無關信件：廣告、測試單、自動回覆。"
 description = "資訊不足：內容太短或沒有說明對象，無法判斷要處理哪一筆訂單或哪件事，需要請客戶補充。"
 
 [urgency_level]
-instructions = "根據進件時間與工單內容，判斷這件事需要多快處理。語氣急迫或情緒激動本身不代表急迫。"
+instructions = "根據工單內容，判斷這件事需要多快處理。語氣急迫或情緒激動本身不代表急迫。"
 
 [urgency_level.options.high]
-description = "距進件時間 72 小時內要出發或使用，或客戶已在旅途中需要即時協助。"
+description = "信件提到 72 小時內（今天、明天、後天）要出發或使用，或客戶已在旅途中需要即時協助。"
 
 [urgency_level.options.medium]
-description = "距進件時間兩週內要出發或使用，或客戶提到短期期限，例如付款期限、報帳期限。"
+description = "信件提到兩週內要出發或使用，或客戶提到短期期限，例如付款期限、報帳期限。"
 
 [urgency_level.options.low]
 description = "沒有近期時間壓力：一般詢問、出發日在兩週以後、事後反映、非客服信件。"

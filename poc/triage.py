@@ -14,7 +14,7 @@ from pathlib import Path
 from evaluate import compute_eval_metrics, load_expected_labels, write_review_html
 from pipeline.models import create_model
 from pipeline.preprocess import load_tickets
-from pipeline.router import TriageDecision, triage_one
+from pipeline.router import TriageDecision, assign_queue_rank, triage_one
 
 
 def load_toml(path: Path) -> dict:
@@ -25,10 +25,10 @@ def load_toml(path: Path) -> dict:
 def write_triage_csv(path: Path, decisions: list[TriageDecision]) -> None:
     with path.open("w", encoding="utf-8", newline="") as f:
         w = csv.writer(f)
-        w.writerow(["ticket_id", "category", "sub_category", "route", "priority", "confidence",
+        w.writerow(["queue_rank", "ticket_id", "category", "sub_category", "route", "confidence",
                     "urgency", "impact", "reason", "model"])
         for d in decisions:
-            w.writerow([d.ticket_id, d.category, d.sub_category, d.route, d.priority, f"{d.confidence:.4f}",
+            w.writerow([d.queue_rank, d.ticket_id, d.category, d.sub_category, d.route, f"{d.confidence:.4f}",
                         f"{d.urgency}({d.urgency_conf:.2f})", f"{d.impact}({d.impact_conf:.2f})", d.reason, d.model])
 
 
@@ -53,12 +53,13 @@ def run(input_csv: Path, output_dir: Path, config_dir: Path, model_name: str, en
             d = triage_one(t, model, labels, routing, threshold)
             decisions.append(d)
             log(f"[{i:02d}/{len(tickets)}] {t.ticket_id} {d.total_ms:.0f}ms -> {d.category}/{d.sub_category} "
-                f"route={d.route} prio={d.priority} urgency={d.urgency} impact={d.impact} | {d.reason}")
+                f"route={d.route} urgency={d.urgency} impact={d.impact} | {d.reason}")
             log(f"  [INPUT] {json.dumps(d.model_input, ensure_ascii=False)}", console=False)
             for tr in d.model_traces:
                 log(f"  [MODEL_IO] stage={tr['stage']} ms={tr['ms']} input_tokens={tr['input_tokens']} "
                     f"output={json.dumps(tr['output'], ensure_ascii=False)}", console=False)
 
+        decisions = assign_queue_rank(decisions, float(routing.get("level_conf_threshold", 0.70)))
         write_triage_csv(result_dir / "triage_result.csv", decisions)
         gold = load_expected_labels(gold_csv) if gold_csv and gold_csv.exists() else {}
         metrics = compute_eval_metrics(decisions, gold) if gold else None
@@ -70,7 +71,7 @@ def run(input_csv: Path, output_dir: Path, config_dir: Path, model_name: str, en
             f"human={routes['human']} auto={routes['auto']}")
         if metrics:
             log(f"[EVAL] category={metrics['cat_acc']}% sub_category={metrics['sub_acc']}% route={metrics['route_acc']}% "
-                f"priority={metrics['prio_acc']}% false_auto={metrics['false_auto']}")
+                f"false_auto={metrics['false_auto']}")
     return result_dir
 
 

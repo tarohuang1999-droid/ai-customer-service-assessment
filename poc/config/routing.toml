@@ -1,10 +1,11 @@
-# 分流與優先級對應表（定義來源：../category-priority-spec.md 第 2–4 節）
-# 優先級：P4 最高、P1 最低
+# 分流設定（定義來源：../category-priority-spec.md 第 2–4 節）
 
 confidence_threshold = 0.70   # 細項分類信心低於此值 -> human
+level_conf_threshold = 0.70   # 急迫度、影響程度的信心低於此值時，排序視為 low
 max_body_chars = 300          # 送入模型的內文長度上限（保留開頭 65% 與結尾 35%）
 
 # 細項 -> route
+# auto：AI 能決定回覆的絕大部分內容（草擬），或非客服信件（自動轉交、歸檔）
 [route]
 "product/product_info" = "auto"
 "product/travel_rule" = "auto"
@@ -19,33 +20,8 @@ max_body_chars = 300          # 送入模型的內文長度上限（保留開頭
 "system_issue/account_access" = "human"
 "system_issue/checkout_error" = "human"
 "trip_incident/disruption" = "human"
-"complaint/service_complaint" = "human"
+"complaint/service_complaint" = "auto"
 "complaint/compensation_claim" = "human"
-"other/business" = "human"
+"other/business" = "auto"
 "other/irrelevant" = "auto"
 "unclear/insufficient_info" = "auto"
-
-# 急迫度 x 影響程度 -> 優先級
-[priority_matrix.high]
-high = "P4"
-medium = "P4"
-low = "P4"
-
-[priority_matrix.medium]
-high = "P3"
-medium = "P2"
-low = "P2"
-
-[priority_matrix.low]
-high = "P3"
-medium = "P2"
-low = "P2"
-
-# 細項的優先級下限：取對應表結果與下限的較高者
-[priority_floor]
-"trip_incident/disruption" = "P4"
-"complaint/compensation_claim" = "P3"
-
-# 大類固定優先級（覆蓋上述結果）
-[priority_fixed]
-other = "P1"

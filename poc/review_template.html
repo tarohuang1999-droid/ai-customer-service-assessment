@@ -66,7 +66,6 @@ table.plain { width: auto; min-width: 50%; }
 .count { color: var(--muted); font-size: 12px; align-self: center; }
 .badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; border: 1px solid var(--ring); white-space: nowrap; }
 .badge .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; vertical-align: 1px; }
-.p4 .dot { background: var(--critical); } .p3 .dot { background: var(--serious); } .p2 .dot { background: var(--warning); } .p1 .dot { background: var(--muted); }
 .r-auto .dot { background: var(--auto); } .r-human .dot { background: var(--human); }
 .subj { font-weight: 600; } .body { color: var(--ink-2); max-width: 420px; margin-top: 2px; }
 .cat { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
@@ -100,7 +99,7 @@ tr.mismatch td { background: var(--diff); }
       <div class="legend"><span><i class="key" style="background:var(--human)"></i>human %%HUMAN_N%% 件</span><span><i class="key" style="background:var(--auto)"></i>auto %%AUTO_N%% 件</span></div>
     </div>
     <div class="grid2">
-      <div><h3>主類別分佈</h3>%%CAT_BARS%%<h3>優先級分佈（P4 最高）</h3>%%PRIO_BARS%%</div>
+      <div><h3>主類別分佈</h3>%%CAT_BARS%%<h3>急迫度（排序第一鍵；信心 &lt; 0.70 視為 low）</h3>%%URG_BARS%%<h3>影響程度（排序第二鍵）</h3>%%IMP_BARS%%</div>
       <div><h3>細項分佈</h3>%%SUB_BARS%%</div>
     </div>
   </section>
@@ -122,16 +121,15 @@ tr.mismatch td { background: var(--diff); }
 
   <section id="tickets">
     <h2>逐筆檢視</h2>
-    <p class="sub">紅底為與標準答案不一致；標準答案中不一致的欄位以紅字標示。</p>
+    <p class="sub">依佇列排序（急迫度 → 影響程度 → 進件時間）列出。紅底為與標準答案不一致，不一致的欄位以紅字標示。</p>
     <div class="controls">
       <input id="q" placeholder="搜尋 ID、主旨、內文、類別">
       <select id="f-route"><option value="">全部 route</option><option>human</option><option>auto</option></select>
-      <select id="f-prio"><option value="">全部優先級</option><option>P4</option><option>P3</option><option>P2</option><option>P1</option></select>
       <select id="f-match"><option value="">全部結果</option><option value="bad">只看不一致</option><option value="ok">只看一致</option></select>
       <span class="count" id="count"></span>
     </div>
     <table>
-      <thead><tr><th>ID</th><th>主旨 / 內文</th><th>分類</th><th>route</th><th>優先級</th><th>急迫 / 影響</th><th>標準答案</th><th>reason</th></tr></thead>
+      <thead><tr><th>排序</th><th>ID</th><th>主旨 / 內文</th><th>分類</th><th>route</th><th>急迫 / 影響</th><th>標準答案</th><th>reason</th></tr></thead>
       <tbody id="rows"></tbody>
     </table>
   </section>
@@ -146,26 +144,26 @@ function goldCell(d) {
   if (!d.gold) return '<span class="muted">—</span>';
   if (!d.diff.length) return '<span class="ok">✓ 一致</span>';
   const g = d.gold, mark = (f, v) => d.diff.includes(f) ? `<b>${esc(v)}</b>` : esc(v);
-  return `<div class="gold">${mark("category", g.category)} / ${mark("sub_category", g.sub_category)}<br>${mark("route", g.route)} · ${mark("priority", g.priority)}</div>`;
+  return `<div class="gold">${mark("category", g.category)} / ${mark("sub_category", g.sub_category)}<br>${mark("route", g.route)}</div>`;
 }
 function render() {
-  const q = $("q").value.toLowerCase(), r = $("f-route").value, p = $("f-prio").value, m = $("f-match").value;
+  const q = $("q").value.toLowerCase(), r = $("f-route").value, m = $("f-match").value;
   const rows = DATA.filter(d =>
     (!q || [d.id, d.subject, d.body, d.cat, d.sub].join(" ").toLowerCase().includes(q)) &&
-    (!r || d.route === r) && (!p || d.prio === p) &&
+    (!r || d.route === r) &&
     (!m || (m === "bad" ? d.diff.length > 0 : d.gold && d.diff.length === 0)));
   $("count").textContent = `${rows.length} / ${DATA.length} 筆`;
   $("rows").innerHTML = rows.map(d => `<tr class="${d.diff.length ? "mismatch" : ""}">
+    <td class="num">${d.rank}</td>
     <td class="num">${esc(d.id)}<div class="muted">${esc(d.created)}<br>${esc(d.channel)}</div></td>
     <td><div class="subj">${esc(d.subject)}</div><div class="body">${esc(d.body)}</div></td>
     <td class="cat">${esc(d.cat)}<br>${esc(d.sub)}<div class="muted">信心 ${d.conf.toFixed(2)}</div></td>
     <td>${badge("r-" + d.route, d.route)}</td>
-    <td>${badge(d.prio.toLowerCase(), d.prio)}</td>
     <td class="muted">${d.urg} / ${d.imp}</td>
     <td>${goldCell(d)}</td>
     <td class="muted">${esc(d.reason)}</td></tr>`).join("");
 }
-["q", "f-route", "f-prio", "f-match"].forEach(id => $(id).addEventListener("input", render));
+["q", "f-route", "f-match"].forEach(id => $(id).addEventListener("input", render));
 render();
 const tip = $("tip");
 document.addEventListener("mousemove", e => {
