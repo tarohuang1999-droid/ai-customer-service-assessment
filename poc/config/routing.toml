@@ -2,7 +2,7 @@
 
 classification_threshold = 0.50  # 細項分類信心低於此值 -> other/unclear（human）
 level_conf_threshold = 0.70      # 排序時，急迫度、影響程度的信心低於此值視為 low
-max_body_chars = 300             # 送入模型的內文長度上限（保留開頭 65% 與結尾 35%）
+max_body_chars = 1000             # 送入模型的內文長度上限（保留開頭 65% 與結尾 35%）
 
 # 條件規則：auto 白名單
 # 只有列在這裡的細項，且急迫度、影響程度都在允許清單內，才是 auto；其餘一律 human。
