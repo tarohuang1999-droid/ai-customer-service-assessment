@@ -4,3 +4,6 @@
 .venv/
 submission/
 *.zip
+
+# 設計過程與舊版草稿，不納入繳交
+archieve/
