@@ -308,3 +308,12 @@ uv run python triage.py --model llamacpp --endpoint http://localhost:8090/v1/sys
 
 選擇原則：False Auto 必須為 0；其次 False Human 越少越好；表現接近時，選條件規則（容易解釋，沒有需要調的參數）。選定後，文件只保留選定的方式，另一種移除或移到附錄。
 
+---
+
+## 10. 追加：類別與程度描述（2026-10-31）
+
+- 作者決定保留細項，但移除 `unclear/insufficient_info`，改用 `other/unclear`（human）。`other/unclear` 現在同時是模型選項（看不出要處理什麼），也是分類信心不足時系統指派的類別。類別變為 7 大類、18 個細項；auto 白名單變為 10 個細項。
+- 標準答案只改 TK-1033：`unclear/insufficient_info/auto` → `other/unclear/human`。
+- 急迫度改為只看時間點（3 天內、3 天到 2 週、沒有近期日期），影響程度改為只看後果（金錢損失或爭議、需要修改但沒有爭議、只需資訊或轉交）。
+- 待驗證：作者用 Clef 分別以 `--routing-mode rule` 與 `--routing-mode risk` 實跑比較。
+
