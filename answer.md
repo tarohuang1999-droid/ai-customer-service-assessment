@@ -119,7 +119,7 @@ Q: 選定你在 Q1 建議優先的方向，寫一份可以拿去跟利害關係�
   - **`route` 由完成工單需要的動作決定**：只需知識庫或唯讀訂單資料即可回答的走 `auto`（草擬）；需要在既有系統寫入、或需要調查與判斷責任的走 `human`。
   - 一張工單有多個訴求時，以風險最高的訴求決定類別。
   - `priority` 由決策模型判斷的急迫度 × 影響程度對應表決定，再套用細項下限與硬性規則調升。
-  - 18 個細項、邊界與優先級規則的完整定義見附件 [taxonomy-and-priority-spec.md](taxonomy-and-priority-spec.md)。
+  - 18 個細項、邊界與優先級規則的完整定義見附件 [category-priority-spec.md](category-priority-spec.md)。
 
 | 主類別 (`category`) | 涵蓋範圍 | 預設 `route` |
 | --- | --- | --- |
