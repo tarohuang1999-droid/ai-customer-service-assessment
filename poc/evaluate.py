@@ -91,13 +91,14 @@ def _table(headers: list[str], rows: list[list[Any]]) -> str:
 
 
 def write_review_html(out_path: Path, tickets: list[Ticket], decisions: list[TriageDecision],
-                      gold: dict[str, dict[str, str]], metrics: dict[str, Any] | None, model_name: str) -> None:
+                      gold: dict[str, dict[str, str]], metrics: dict[str, Any] | None, model_name: str,
+                      level_conf_threshold: float = 0.70) -> None:
     n = len(decisions) or 1
     by_id = {t.ticket_id: t for t in tickets}
     routes = Counter(d.route for d in decisions)
     cats = Counter(d.category for d in decisions).most_common()
     subs = Counter(f"{d.category} / {d.sub_category}" for d in decisions).most_common()
-    gate = 0.70
+    gate = level_conf_threshold
     urg = Counter(d.urgency if d.urgency_conf >= gate else "low" for d in decisions)
     imp = Counter(d.impact if d.impact_conf >= gate else "low" for d in decisions)
     human_pct = routes["human"] / n * 100

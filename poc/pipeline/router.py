@@ -72,9 +72,10 @@ def triage_one(ticket: Ticket, model: DecisionModel, labels: dict[str, Any], rou
 
 
 def assign_queue_rank(decisions: list[TriageDecision], level_conf_threshold: float = 0.70) -> list[TriageDecision]:
-    """佇列排序：急迫度 → 影響程度 → 進件時間。程度信心不足時視為 low。回傳依排序後的清單。"""
+    """佇列排序：模型異常置頂 → human 在 auto 前 → 急迫度 → 影響程度 → 進件時間。
+    程度信心不足時，排序視為 low（分流仍採模型選的等級）。回傳依排序後的清單。"""
     def level(name: str, conf: float) -> int:
-        return LEVEL_RANK[name] if conf >= level_conf_threshold else 0
+        return LEVEL_RANK.get(name, 2) if conf >= level_conf_threshold else 0  # 未知等級保守視為 high
 
     def created(d: TriageDecision) -> datetime:
         try:
@@ -82,7 +83,8 @@ def assign_queue_rank(decisions: list[TriageDecision], level_conf_threshold: flo
         except ValueError:
             return datetime.max
 
-    ordered = sorted(decisions, key=lambda d: (-level(d.urgency, d.urgency_conf),
+    ordered = sorted(decisions, key=lambda d: (not d.reason.startswith("模型異常"), d.route != "human",
+                                               -level(d.urgency, d.urgency_conf),
                                                -level(d.impact, d.impact_conf), created(d)))
     for i, d in enumerate(ordered, 1):
         d.queue_rank = i

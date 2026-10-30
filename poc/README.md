@@ -12,7 +12,7 @@
 
 | 工具 | 版本 | 用途 | 安裝 |
 | --- | --- | --- | --- |
-| Python | ≥ 3.13（使用標準庫 `tomllib`） | 執行 pipeline | `uv python install 3.13` |
+| Python | ≥ 3.13（開發與測試環境；程式只用標準庫） | 執行 pipeline | `uv python install 3.13` |
 | uv | ≥ 0.5 | 建立環境與執行 | macOS：`brew install uv`；其他：`curl -LsSf https://astral.sh/uv/install.sh \| sh` |
 | llama.cpp | ≥ v0.6.0（內含 Clef 支援與 `/v1/systemone` API） | 地端執行決策模型（模式 B） | macOS：`brew install llama.cpp`；或從 [releases](https://github.com/ggml-org/llama.cpp/releases) 下載 |
 | Clef-flash GGUF | 9B，本 PoC 使用 `Q8_0` 量化 | 決策模型權重 | 從 Hugging Face 下載 Clef-flash 的 GGUF 檔 |
@@ -48,7 +48,9 @@ JEV_API_KEY=... uv run python triage.py --model jev
 | `review.html` | 執行摘要（類別分佈、需人工比例、急迫度與影響程度分佈）、資料發現、評估結果、依佇列排序的逐筆檢視 |
 | `run.log` | 每筆的模型輸入、3 題的機率輸出、`reason`；模型錯誤以 `[ERROR]` 記錄題目、重試次數與錯誤類型 |
 
-分流方式、白名單與門檻都在 `config/routing.toml`，不需要改程式。
+auto 白名單與門檻都在 `config/routing.toml`，不需要改程式。
+
+> PoC 使用虛構資料，為了方便除錯，`run.log` 與 `review.html` 含信件全文。正式環境的應用 log 只記 ID 與結構化欄位，信件原文留在有權限控管的工單系統（answers.md Q3 §6）。
 
 ---
 
@@ -59,7 +61,7 @@ flowchart LR
     In([工單 CSV]) --> Pre[前處理]
     Pre --> M[導入決策模型分流]
     M -->|逾時或錯誤| Fail(系統報錯：寫 log、轉人工)
-    M --> Map[routing：對應表決定 route]
+    M --> Map[routing：條件規則（白名單）決定 route]
     Map --> Out([triage_result.csv])
 ```
 
@@ -70,13 +72,13 @@ flowchart LR
 | 模組 | 職責 | 輸入 → 輸出 |
 | --- | --- | --- |
 | `triage.py` | CLI 入口：載入設定與工單，逐筆呼叫 router，排序佇列，寫出結果、log 與報表 | CSV、設定檔 → `output/result-<時間>/` |
-| `pipeline/preprocess.py` | 讀取 CSV 前 6 欄、去除前後空白、移除 HTML 標籤；組成模型輸入（主旨＋內文） | CSV → `Ticket` 清單 |
+| `pipeline/preprocess.py` | 讀取 CSV 前 6 欄並驗證表頭、略過 ticket_id 空白的列、去除前後空白、移除 HTML 標籤；組成模型輸入（主旨＋內文，內文超過 300 字時保留開頭 65% 與結尾 35%） | CSV → `Ticket` 清單 |
 | `pipeline/models.py` | 呼叫決策模型 `/v1/systemone`，每筆問 3 題；失敗重試 1 次，仍失敗就回報錯誤。另有離線 `mock` | 模型輸入 → 3 題的選項、機率、信心 |
 | `pipeline/router.py` | 依 `routing.toml` 的條件規則決定 route（第 5 節），並依急迫度、影響程度排序佇列 | 模型結果 → `TriageDecision` |
 | `evaluate.py` | 比對 `expected_labels.csv`，計算準確率、False Auto、信心分箱，統計資料發現，產生 `review.html` | 結果、標準答案 → 評估數字與報表 |
 | `review_template.html` | `review.html` 的版面（HTML／CSS／JS），`evaluate.py` 把資料填入 | — |
-| `config/labels.toml` | 3 題選擇題的題目與選項定義。描述統一寫成「客戶狀態／想要／主題」，只寫正面定義，不寫「不含」等否定句，也不含任何樣本內容 | — |
-| `config/routing.toml` | 條件規則的 auto 白名單、分類信心門檻、排序用的程度信心門檻 | — |
+| `config/labels.toml` | 3 題選擇題的題目與選項定義。描述統一寫成「客戶狀態／想要／主題」，不寫「不含：某某」這類排除句，也不含任何樣本內容 | — |
+| `config/routing.toml` | 條件規則的 auto 白名單、分類信心門檻、排序用的程度信心門檻、內文長度上限 | — |
 
 ---
 
@@ -111,7 +113,9 @@ auto 有兩種：草擬（客服確認後送出），以及非客服信件的自
 
 ### 5.3 佇列排序
 
-不設優先等級。依 **急迫度 → 影響程度 → 進件時間** 排序，`queue_rank` 就是處理順序。程度的信心 < 0.70 時視為 low，避免模型沒把握的 high 被排到最前面。
+不設優先等級。依 **模型異常置頂 → `human` 在 `auto` 之前 → 急迫度 → 影響程度 → 進件時間** 排序，`queue_rank` 就是處理順序。
+
+程度的信心 < 0.70 時，**排序**視為 low，避免模型沒把握的 high 被排到最前面；**分流**則一律採用模型選的等級，只要選了 high 就轉人工（偏保守）。
 
 ### 5.4 例子（條件規則）
 
@@ -184,7 +188,7 @@ auto 有兩種：草擬（客服確認後送出），以及非客服信件的自
 
 代價是信心是否可靠需要驗證：`review.html` 的「分類信心分箱」比較各信心區間的準確率。
 
-**選項描述的寫法**：實測發現，在描述裡寫「不含：某某」反而會讓模型把「某某」當成這個選項的特徵，信心因此下降。所以 `labels.toml` 的描述只寫正面定義，並統一用「客戶狀態／想要／主題」三段，讓相鄰類別的差異落在這三個維度上（例如「已有訂單＋查詢」和「已有訂單＋要求修改」）。類別之間的邊界寫在 spec，作為人工標註的依據。
+**選項描述的寫法**：實測發現，在描述裡寫「不含：某某」反而會讓模型把「某某」當成這個選項的特徵，信心因此下降。所以 `labels.toml` 的描述不寫「不含：某某」這類排除句，並統一用「客戶狀態／想要／主題」三段，讓相鄰類別的差異落在這三個維度上（例如「已有訂單＋查詢」和「已有訂單＋要求修改」）。類別之間的邊界寫在 spec，作為人工標註的依據。
 
 ---
 
@@ -206,7 +210,7 @@ auto 有兩種：草擬（客服確認後送出），以及非客服信件的自
 | 同一寄件人再次來信催單 | TK-1013 → TK-1031 | PoC 不合併；正式環境由工單系統以客戶 ID 判斷未結案件 |
 | 內文夾帶身分證、手機、銀行帳號 | TK-1023 | 模型地端部署、不出內網，本階段不遮罩；log 不存信件全文 |
 
-`review.html` 的資料發現區塊只列有實際處置的項目，每次執行時自動統計。
+`review.html` 的資料發現區塊列出程式自動偵測的項目（空白欄位、HTML 標籤、證號或帳號、同一寄件人重複來信）與處置；廣告與非旅客信件由模型分類處理，見類別分佈。
 
 ---
 

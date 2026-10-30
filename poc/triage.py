@@ -66,7 +66,8 @@ def run(input_csv: Path, output_dir: Path, config_dir: Path, model_name: str, en
         write_triage_csv(result_dir / "triage_result.csv", decisions)
         gold = load_expected_labels(gold_csv) if gold_csv and gold_csv.exists() else {}
         metrics = compute_eval_metrics(decisions, gold) if gold else None
-        write_review_html(result_dir / "review.html", tickets, decisions, gold, metrics, model.name)
+        write_review_html(result_dir / "review.html", tickets, decisions, gold, metrics, model.name,
+                          float(routing.get("level_conf_threshold", 0.70)))
 
         routes = Counter(d.route for d in decisions)
         total_ms = sum(d.total_ms for d in decisions)

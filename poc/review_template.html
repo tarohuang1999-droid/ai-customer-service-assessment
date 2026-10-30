@@ -101,7 +101,7 @@ tr.mismatch td { background: var(--diff); }
       <div class="legend"><span><i class="key" style="background:var(--human)"></i>human %%HUMAN_N%% 件</span><span><i class="key" style="background:var(--auto)"></i>auto %%AUTO_N%% 件</span></div>
     </div>
     <div class="grid2">
-      <div><h3>主類別分佈</h3>%%CAT_BARS%%<h3>急迫度（排序第一鍵；信心 &lt; 0.70 視為 low）</h3>%%URG_BARS%%<h3>影響程度（排序第二鍵）</h3>%%IMP_BARS%%</div>
+      <div><h3>主類別分佈</h3>%%CAT_BARS%%<h3>急迫度（排序用；信心不足視為 low）</h3>%%URG_BARS%%<h3>影響程度（排序用）</h3>%%IMP_BARS%%</div>
       <div><h3>細項分佈</h3>%%SUB_BARS%%</div>
     </div>
   </section>
@@ -123,7 +123,7 @@ tr.mismatch td { background: var(--diff); }
 
   <section id="tickets">
     <h2>逐筆檢視</h2>
-    <p class="sub">依佇列排序（急迫度 → 影響程度 → 進件時間）列出。紅底為與標準答案不一致，不一致的欄位以紅字標示。</p>
+    <p class="sub">依佇列排序（模型異常置頂 → human 在前 → 急迫度 → 影響程度 → 進件時間）列出。紅底為與標準答案不一致，不一致的欄位以紅字標示。</p>
     <div class="controls">
       <input id="q" placeholder="搜尋 ID、主旨、內文、類別">
       <select id="f-route"><option value="">全部 route</option><option>human</option><option>auto</option></select>

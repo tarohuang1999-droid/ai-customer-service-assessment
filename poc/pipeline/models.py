@@ -200,7 +200,7 @@ class JevAPIClient(_SystemOneHTTPBase):
     """Remote Jev decision-model API (/v1/systemone).
 
     Sends ticket text to an external service: use with synthetic data only until
-    legal approves the vendor (see answer Q3 §6).
+    legal approves the vendor (see answers.md Q3 §6).
     """
 
     def __init__(self, endpoint: str | None = None, api_key: str | None = None, timeout: float = 30.0) -> None:
