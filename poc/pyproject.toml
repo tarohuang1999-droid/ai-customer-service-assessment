@@ -1,0 +1,10 @@
+[project]
+name = "ticket-triage-poc"
+version = "0.1.0"
+description = "T-Travel Ticket Triage PoC with Hierarchical Clef/Jev Decision Model and Deterministic Rules"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = []
+
+[project.scripts]
+triage = "triage:main"

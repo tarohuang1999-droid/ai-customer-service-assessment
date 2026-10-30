@@ -1,0 +1,49 @@
+ticket_id,category,sub_category,priority,route,confidence,reason,model
+TK-1001,order_service,document_reissue_and_invoice,P3,auto,0.9203,"分層模型(llamacpp-clef)：order_service(p=0.92) -> document_reissue_and_invoice(p=0.96, 預設=auto)",llamacpp-clef
+TK-1002,refund_change,order_cancellation_refund,P3,human,0.9322,"分層模型(llamacpp-clef)：refund_change(p=0.97) -> order_cancellation_refund(p=0.93, 預設=human)",llamacpp-clef
+TK-1003,product_inquiry,product_spec_and_price,P3,auto,0.9648,"分層模型(llamacpp-clef)：product_inquiry(p=0.96) -> product_spec_and_price(p=0.98, 預設=auto)",llamacpp-clef
+TK-1004,complaint,pure_complaint,P3,auto,0.8779,"分層模型(llamacpp-clef)：complaint(p=0.88) -> pure_complaint(p=0.98, 預設=auto)",llamacpp-clef
+TK-1005,refund_change,order_modification,P3,human,0.1841,"分層模型(llamacpp-clef)：refund_change(p=0.18) -> order_modification(p=0.99, 預設=human)；信心門檻攔截：最低階層信心 0.18 < 0.70",llamacpp-clef
+TK-1006,other_non_cs,b2b_media_hr_referral,P4,human,0.9517,"分層模型(llamacpp-clef)：other_non_cs(p=0.95) -> b2b_media_hr_referral(p=0.98, 預設=human)",llamacpp-clef
+TK-1007,refund_change,order_modification,P3,human,0.8799,"分層模型(llamacpp-clef)：refund_change(p=0.88) -> order_modification(p=0.99, 預設=human)",llamacpp-clef
+TK-1008,other_non_cs,spam_or_test,P4,auto,1.0000,規則前置攔截：外部推銷/博弈廣告（直接標記歸檔）,rule-precheck
+TK-1009,product_inquiry,customization_request,P3,human,0.7542,"分層模型(llamacpp-clef)：product_inquiry(p=0.75) -> customization_request(p=0.99, 預設=human)",llamacpp-clef
+TK-1010,order_service,document_reissue_and_invoice,P3,auto,0.8884,"分層模型(llamacpp-clef)：order_service(p=0.89) -> document_reissue_and_invoice(p=0.98, 預設=auto)",llamacpp-clef
+TK-1011,complaint,service_or_billing_dispute,P2,human,0.7564,"分層模型(llamacpp-clef)：complaint(p=0.76) -> service_or_billing_dispute(p=0.95, 預設=human)；硬性規則：含客訴升級/消保官/媒體/止付字眼",llamacpp-clef
+TK-1012,refund_change,order_modification,P3,human,0.6904,"分層模型(llamacpp-clef)：refund_change(p=0.69) -> order_modification(p=0.99, 預設=human)；信心門檻攔截：最低階層信心 0.69 < 0.70",llamacpp-clef
+TK-1013,complaint,service_or_billing_dispute,P1,human,0.8387,"分層模型(llamacpp-clef)：complaint(p=0.84) -> service_or_billing_dispute(p=0.84, 預設=human)；硬性規則：退改/爭議金額 33,100 元 > 30,000 元；硬性規則：含客訴升級/消保官/媒體/止付字眼；模型緊急度判定 P1 (urgent_p=0.72)",llamacpp-clef
+TK-1014,refund_change,refund_change_policy_general,P3,human,0.4006,"分層模型(llamacpp-clef)：refund_change(p=0.40) -> refund_change_policy_general(p=0.96, 預設=auto)；信心門檻攔截：最低階層信心 0.40 < 0.70",llamacpp-clef
+TK-1015,refund_change,order_cancellation_refund,P2,human,0.9347,"分層模型(llamacpp-clef)：refund_change(p=0.93) -> order_cancellation_refund(p=0.95, 預設=human)；硬性規則：退改/爭議金額 186,000 元 > 30,000 元",llamacpp-clef
+TK-1016,order_service,account_and_pricing_issue,P1,human,0.6510,"分層模型(llamacpp-clef)：order_service(p=0.65) -> account_and_pricing_issue(p=0.94, 預設=human)；硬性規則：72小時內急件/旅途中危機/帳號鎖定待付款；信心門檻攔截：最低階層信心 0.65 < 0.70",llamacpp-clef
+TK-1017,other_non_cs,b2b_media_hr_referral,P4,human,0.9254,"分層模型(llamacpp-clef)：other_non_cs(p=0.93) -> b2b_media_hr_referral(p=0.99, 預設=human)",llamacpp-clef
+TK-1018,product_inquiry,policy_and_regulation,P3,auto,0.7453,"分層模型(llamacpp-clef)：product_inquiry(p=0.75) -> policy_and_regulation(p=0.99, 預設=auto)",llamacpp-clef
+TK-1019,complaint,service_or_billing_dispute,P1,human,0.7803,"分層模型(llamacpp-clef)：complaint(p=0.78) -> service_or_billing_dispute(p=0.89, 預設=human)；硬性規則：含客訴升級/消保官/媒體/止付字眼；硬性規則：同客重複進件催單；模型緊急度判定 P1 (urgent_p=0.80)",llamacpp-clef
+TK-1020,order_service,order_status_and_points,P3,auto,0.9091,"分層模型(llamacpp-clef)：order_service(p=0.91) -> order_status_and_points(p=0.98, 預設=auto)",llamacpp-clef
+TK-1021,refund_change,order_cancellation_refund,P1,human,0.8425,"分層模型(llamacpp-clef)：refund_change(p=0.87) -> order_cancellation_refund(p=0.84, 預設=human)；硬性規則：72小時內急件/旅途中危機/帳號鎖定待付款",llamacpp-clef
+TK-1022,product_inquiry,customization_request,P3,human,0.8439,"分層模型(llamacpp-clef)：product_inquiry(p=0.84) -> customization_request(p=0.98, 預設=human)",llamacpp-clef
+TK-1023,refund_change,order_cancellation_refund,P3,human,0.8388,"分層模型(llamacpp-clef)：refund_change(p=0.90) -> order_cancellation_refund(p=0.84, 預設=human)",llamacpp-clef
+TK-1024,complaint,pure_complaint,P3,auto,0.9330,"分層模型(llamacpp-clef)：complaint(p=0.93) -> pure_complaint(p=0.99, 預設=auto)",llamacpp-clef
+TK-1025,product_inquiry,product_spec_and_price,P3,auto,0.9561,"分層模型(llamacpp-clef)：product_inquiry(p=0.96) -> product_spec_and_price(p=0.98, 預設=auto)",llamacpp-clef
+TK-1026,other_non_cs,b2b_media_hr_referral,P4,human,0.8713,"分層模型(llamacpp-clef)：other_non_cs(p=0.93) -> b2b_media_hr_referral(p=0.87, 預設=human)",llamacpp-clef
+TK-1027,order_service,order_status_and_points,P3,human,0.6425,"分層模型(llamacpp-clef)：order_service(p=0.64) -> order_status_and_points(p=0.74, 預設=auto)；信心門檻攔截：最低階層信心 0.64 < 0.70",llamacpp-clef
+TK-1028,refund_change,order_modification,P1,human,0.2402,"分層模型(llamacpp-clef)：refund_change(p=0.24) -> order_modification(p=0.93, 預設=human)；信心門檻攔截：最低階層信心 0.24 < 0.70；模型緊急度判定 P1 (urgent_p=0.90)",llamacpp-clef
+TK-1029,complaint,service_or_billing_dispute,P2,human,0.9414,"分層模型(llamacpp-clef)：complaint(p=0.94) -> service_or_billing_dispute(p=0.95, 預設=human)；硬性規則：退改/爭議金額 45,000 元 > 30,000 元",llamacpp-clef
+TK-1030,complaint,service_or_billing_dispute,P2,human,0.1738,"分層模型(llamacpp-clef)：complaint(p=0.17) -> service_or_billing_dispute(p=0.69, 預設=human)；信心門檻攔截：最低階層信心 0.17 < 0.70",llamacpp-clef
+TK-1031,complaint,service_or_billing_dispute,P1,human,0.8372,"分層模型(llamacpp-clef)：complaint(p=0.84) -> service_or_billing_dispute(p=0.84, 預設=human)；硬性規則：退改/爭議金額 33,100 元 > 30,000 元；硬性規則：含客訴升級/消保官/媒體/止付字眼；硬性規則：同客重複進件催單；模型緊急度判定 P1 (urgent_p=0.81)",llamacpp-clef
+TK-1032,product_inquiry,customization_request,P3,human,0.8496,"分層模型(llamacpp-clef)：product_inquiry(p=0.85) -> customization_request(p=0.98, 預設=human)",llamacpp-clef
+TK-1033,unknown,insufficient_info,P3,auto,1.0000,規則前置攔截：內文過短且缺訂單與具體訴求（套用固定補件模板）,rule-precheck
+TK-1034,other_non_cs,b2b_media_hr_referral,P4,human,0.8867,"分層模型(llamacpp-clef)：other_non_cs(p=0.89) -> b2b_media_hr_referral(p=0.91, 預設=human)",llamacpp-clef
+TK-1035,order_service,order_status_and_points,P3,auto,0.9034,"分層模型(llamacpp-clef)：order_service(p=0.90) -> order_status_and_points(p=0.96, 預設=auto)",llamacpp-clef
+TK-1036,product_inquiry,product_spec_and_price,P3,auto,0.8996,"分層模型(llamacpp-clef)：product_inquiry(p=0.90) -> product_spec_and_price(p=0.93, 預設=auto)",llamacpp-clef
+TK-1037,complaint,service_or_billing_dispute,P1,human,0.7329,"分層模型(llamacpp-clef)：complaint(p=0.73) -> service_or_billing_dispute(p=0.97, 預設=human)；硬性規則：72小時內急件/旅途中危機/帳號鎖定待付款",llamacpp-clef
+TK-1038,refund_change,refund_change_policy_general,P3,human,0.6422,"分層模型(llamacpp-clef)：refund_change(p=0.64) -> refund_change_policy_general(p=0.90, 預設=auto)；信心門檻攔截：最低階層信心 0.64 < 0.70",llamacpp-clef
+TK-1039,order_service,document_reissue_and_invoice,P3,auto,0.7232,"分層模型(llamacpp-clef)：order_service(p=0.72) -> document_reissue_and_invoice(p=0.97, 預設=auto)",llamacpp-clef
+TK-1040,product_inquiry,policy_and_regulation,P3,human,0.5876,"分層模型(llamacpp-clef)：product_inquiry(p=0.59) -> policy_and_regulation(p=0.98, 預設=auto)；硬性規則：涉及外部最新簽證/法規變動無明確依據；信心門檻攔截：最低階層信心 0.59 < 0.70",llamacpp-clef
+TK-1041,other_non_cs,spam_or_test,P4,auto,1.0000,規則前置攔截：系統測試單（直接標記歸檔）,rule-precheck
+TK-1042,order_service,document_reissue_and_invoice,P1,human,0.7233,"分層模型(llamacpp-clef)：order_service(p=0.72) -> document_reissue_and_invoice(p=0.97, 預設=auto)；硬性規則：72小時內急件/旅途中危機/帳號鎖定待付款",llamacpp-clef
+TK-1043,refund_change,order_modification,P3,human,0.5247,"分層模型(llamacpp-clef)：refund_change(p=0.73) -> order_modification(p=0.52, 預設=human)；信心門檻攔截：最低階層信心 0.52 < 0.70",llamacpp-clef
+TK-1044,complaint,service_or_billing_dispute,P2,human,0.8620,"分層模型(llamacpp-clef)：complaint(p=0.86) -> service_or_billing_dispute(p=0.91, 預設=human)",llamacpp-clef
+TK-1045,product_inquiry,product_spec_and_price,P3,human,0.1061,"分層模型(llamacpp-clef)：product_inquiry(p=0.11) -> product_spec_and_price(p=0.28, 預設=auto)；信心門檻攔截：最低階層信心 0.11 < 0.70",llamacpp-clef
+TK-1046,order_service,document_reissue_and_invoice,P3,auto,0.8160,"分層模型(llamacpp-clef)：order_service(p=0.82) -> document_reissue_and_invoice(p=0.97, 預設=auto)",llamacpp-clef
+TK-1047,other_non_cs,b2b_media_hr_referral,P4,human,0.8026,"分層模型(llamacpp-clef)：other_non_cs(p=0.80) -> b2b_media_hr_referral(p=0.86, 預設=human)",llamacpp-clef
+TK-1048,refund_change,refund_change_policy_general,P3,auto,0.9626,"分層模型(llamacpp-clef)：refund_change(p=0.96) -> refund_change_policy_general(p=0.97, 預設=auto)",llamacpp-clef

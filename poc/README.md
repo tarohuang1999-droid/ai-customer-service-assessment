@@ -51,37 +51,33 @@ poc/
 
 ### 3.1 模式 A：乾淨環境直接執行（Mock Baseline）
 
-只需 Python 3.13，不依賴外部套件、API Key 或本地模型：
+使用 `uv` 管理環境（Python 3.13+，純標準庫零外部依賴）：
 
 ```bash
-# 1. 執行分流 pipeline 並一併產出評估與 HTML 檢視介面
-python3 triage.py --input ../sample_tickets.csv --output-dir output --model mock --eval data/expected_labels.csv --html
+cd poc
 
-# 2. 開啟互動式 HTML 介面檢視分類結果與 Eval 報告（或直接雙擊打開 output/review.html）
-python3 triage.py --serve --port 8000
+# 1. 執行分流 pipeline 並產出 CSV、摘要、Eval 報告與互動式 HTML
+uv run python triage.py --model mock
+
+# 2. 開啟互動式 HTML 介面檢視分類結果與 Eval 報告（或直接於瀏覽器開啟 output/review.html）
+uv run python triage.py --model mock --serve --port 8000
 
 # 3. 執行單元測試
-python3 -m unittest discover -s tests
+uv run python -m unittest discover -s tests -v
 ```
 
 ### 3.2 模式 B：本機部署 `llama.cpp` + `Clef GGUF` 接口
 
 ```bash
-# Step 1：安裝 llama.cpp 並啟動 Clef-Flash (9B GGUF，約需 8GB RAM/VRAM)
-brew install llama.cpp
-llama-server -hf ggml-org/Clef-Flash-GGUF --host 127.0.0.1 --port 8080
-# 若硬體允許（16GB–20GB RAM/VRAM），可改用 27B 模型：
-# llama-server -hf ggml-org/Clef-GGUF --host 127.0.0.1 --port 8080
+# Step 1：啟動本地 llama.cpp 伺服器（載入 Clef-Flash GGUF，預設 port 8090）
+llama-server -m /Users/james/llm_models/clef/Clef-Flash-Q8_0.gguf --port 8090
 
-# Step 2：以 llamacpp 接口執行分流與產出 HTML Review 介面
-python3 triage.py \
-  --input ../sample_tickets.csv \
-  --output-dir output \
+# Step 2：以 llamacpp 接口執行分層分流與產出 HTML Review 介面
+cd poc
+uv run python triage.py \
   --model llamacpp \
-  --endpoint http://127.0.0.1:8080/v1/systemone \
-  --threshold 0.70 \
-  --eval data/expected_labels.csv \
-  --html
+  --endpoint http://localhost:8090/v1/systemone \
+  --threshold 0.70
 ```
 
 ### 3.3 模式 C：呼叫遠端 Jev API 接口
@@ -89,14 +85,11 @@ python3 triage.py \
 ```bash
 export JEV_API_KEY="your_jev_api_key"
 
-python3 triage.py \
-  --input ../sample_tickets.csv \
-  --output-dir output \
+cd poc
+uv run python triage.py \
   --model jev \
   --endpoint https://api.jev.ai/v1/systemone \
-  --threshold 0.70 \
-  --eval data/expected_labels.csv \
-  --html
+  --threshold 0.70
 ```
 
 ---

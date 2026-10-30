@@ -1,0 +1,98 @@
+# 分層決策模型設定檔（精簡描述使每次請求約 180-280 tokens，遠低於 llama.cpp 預設 512 batch 上限）
+[stage1]
+category_instructions = "判斷此旅遊客服工單的主類別"
+urgency_instructions = "是否為72小時內急件（明天或今日出發/使用、旅途中房間有蟑螂、帳號被鎖待付款）？"
+impact_instructions = "是否為高影響事件（退改或求償逾3萬、重複扣款、導遊失職或飯店不符要求賠償、揚言找消保官/媒體/止付）？"
+
+[categories.product_inquiry]
+description = "售前產品與行程詢問：團費包含項目、小孩收費、JR PASS兌換、護照簽證效期、素食、輪椅無障礙、郵輪艙房"
+
+[categories.order_service]
+description = "訂單服務與帳務：未收到確認信或QR code、行程表與出發通知寄送時間、點數折抵、改發票統編、英文收據、帳號被鎖、結帳金額不符"
+
+[categories.refund_change]
+description = "取消退費或修改訂單：住院/骨折/颱風取消退費、提供帳戶要求退款、問取消手續費或退款天數、改期、換接送飯店、改護照名、團員退出、加購嬰兒票或行李"
+
+[categories.complaint]
+description = "客訴抱怨與扣款求償：抱怨電話打不通、投訴導遊滑手機或遲到錯過班機、房間有蟑螂或發霉、重複扣款、客服報錯價、揚言找消保官或媒體"
+
+[categories.other_non_cs]
+description = "非客服外部信件：企業員工旅遊包團詢價、巴士包車報價、應徵導遊職缺、KOL業配合作、記者媒體採訪"
+
+[categories.unknown]
+description = "內文極短缺乏上下文（如只寫可以退嗎）"
+
+# Stage 2: 細項分類（Sub-categories）與預設路由
+[sub_categories.product_inquiry]
+instructions = "判斷此產品詢問的細項類別"
+
+[sub_categories.product_inquiry.options.product_spec_and_price]
+route = "auto"
+description = "團費包含項目、2歲小孩收費、JR PASS兌換地點與方式"
+
+[sub_categories.product_inquiry.options.policy_and_regulation]
+route = "auto"
+description = "護照效期不足六個月規定、泰國落地簽或簽證規定"
+
+[sub_categories.product_inquiry.options.customization_request]
+route = "human"
+description = "特殊客製化安排：全素食餐、輪椅無障礙房與斜坡巴士、郵輪指定高樓層或船中段艙房"
+
+[sub_categories.order_service]
+instructions = "判斷此訂單服務的細項類別"
+
+[sub_categories.order_service.options.order_status_and_points]
+route = "auto"
+description = "詢問行程表或出發通知何時寄出、旺來金點數折抵規則"
+
+[sub_categories.order_service.options.document_reissue_and_invoice]
+route = "auto"
+description = "未收到確認信或電子票券QR code、發票統編重開或改三聯式、開立英文收據invoice"
+
+[sub_categories.order_service.options.account_and_pricing_issue]
+route = "human"
+description = "會員帳號被鎖無法登入、網頁價格與結帳金額不同"
+
+[sub_categories.refund_change]
+instructions = "判斷此退改工單是純問退改通則、申請修改訂單、還是申請取消退費"
+
+[sub_categories.refund_change.options.refund_change_policy_general]
+route = "auto"
+description = "純詢問通則未實際退改：出發前3天取消手續費比例、信用卡退款入帳天數、購買前問合掌村大雪停駛是否取消"
+
+[sub_categories.refund_change.options.order_modification]
+route = "human"
+description = "申請修改已訂行程：改期到4月、加購嬰兒票、加購托運行李、更改接送飯店pickup hotel、更正護照英文名、12人團2人退出"
+
+[sub_categories.refund_change.options.order_cancellation_refund]
+route = "human"
+description = "申請取消行程或辦理退款：住院或骨折申請取消退費、明日出發遇颱風問延期退費、提供銀行帳戶要求匯入退款"
+
+[sub_categories.complaint]
+instructions = "判斷此客訴是純抱怨電話等待，還是實質服務瑕疵與扣款求償爭議"
+
+[sub_categories.complaint.options.pure_complaint]
+route = "auto"
+description = "純抱怨電話打不通或等40分鐘沒人接，未要求賠償或退款"
+
+[sub_categories.complaint.options.service_or_billing_dispute]
+route = "human"
+description = "服務瑕疵或扣款求償：導遊滑手機與行程縮水、領隊遲到錯過班機求償、房間有蟑螂或發霉、疑似重複扣款、客服回錯改期費要求退錢"
+
+[sub_categories.other_non_cs]
+instructions = "判斷此非客服信件是商務公關人資轉介，還是廣告測試單"
+
+[sub_categories.other_non_cs.options.b2b_media_hr_referral]
+route = "human"
+description = "企業包團詢價、巴士包車報價、應徵導遊職缺、KOL業配合作、記者媒體採訪"
+
+[sub_categories.other_non_cs.options.spam_or_test]
+route = "auto"
+description = "博弈廣告或系統測試單"
+
+[sub_categories.unknown]
+instructions = "待釐清工單"
+
+[sub_categories.unknown.options.insufficient_info]
+route = "auto"
+description = "內文過短缺乏訂單號與訴求"

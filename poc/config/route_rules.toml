@@ -1,0 +1,13 @@
+# 分流與優先級判定規則
+confidence_threshold = 0.70
+urgency_prob_threshold = 0.70
+impact_prob_threshold = 0.70
+high_amount_threshold = 30000
+
+[priority_rules]
+# P4: 非客服類別（other_non_cs）
+p4_categories = ["other_non_cs"]
+
+# P1: 72小時內急件、旅途中危機、帳號鎖定待付款（由 regex urgent_72h 或模型 urgency 高信心觸發）
+# P2: 高額退改求償 (>30,000)、升級字眼、重複催單、實質客訴爭議（service_or_billing_dispute）
+p2_sub_categories = ["service_or_billing_dispute"]
