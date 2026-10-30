@@ -37,7 +37,6 @@ uv run python triage.py --model llamacpp --endpoint http://localhost:8090/v1/sys
 # C. 遠端 Jev API（僅限虛構資料；真實工單須經法務核准供應商）
 JEV_API_KEY=... uv run python triage.py --model jev
 
-# 分流方式預設為條件規則；加上 --routing-mode risk 改用風險分數（比較用）
 # 加上 --serve，執行後會在瀏覽器開啟 review.html
 ```
 
@@ -45,7 +44,7 @@ JEV_API_KEY=... uv run python triage.py --model jev
 
 | 檔案 | 內容 |
 | --- | --- |
-| `triage_result.csv` | 48 筆，依佇列排序：`queue_rank, ticket_id, category, sub_category, route, confidence, urgency, impact, risk, reason, model` |
+| `triage_result.csv` | 48 筆，依佇列排序：`queue_rank, ticket_id, category, sub_category, route, confidence, urgency, impact, reason, model` |
 | `review.html` | 執行摘要（類別分佈、需人工比例、急迫度與影響程度分佈）、資料發現、評估結果、依佇列排序的逐筆檢視 |
 | `run.log` | 每筆的模型輸入、3 題的機率輸出、`reason`；模型錯誤以 `[ERROR]` 記錄題目、重試次數與錯誤類型 |
 
@@ -73,11 +72,11 @@ flowchart LR
 | `triage.py` | CLI 入口：載入設定與工單，逐筆呼叫 router，排序佇列，寫出結果、log 與報表 | CSV、設定檔 → `output/result-<時間>/` |
 | `pipeline/preprocess.py` | 讀取 CSV 前 6 欄、去除前後空白、移除 HTML 標籤；組成模型輸入（主旨＋內文） | CSV → `Ticket` 清單 |
 | `pipeline/models.py` | 呼叫決策模型 `/v1/systemone`，每筆問 3 題；失敗重試 1 次，仍失敗就回報錯誤。另有離線 `mock` | 模型輸入 → 3 題的選項、機率、信心 |
-| `pipeline/router.py` | 依 `routing.toml` 決定 route（第 5 節：條件規則或風險分數），並依急迫度、影響程度排序佇列 | 模型結果 → `TriageDecision` |
+| `pipeline/router.py` | 依 `routing.toml` 的條件規則決定 route（第 5 節），並依急迫度、影響程度排序佇列 | 模型結果 → `TriageDecision` |
 | `evaluate.py` | 比對 `expected_labels.csv`，計算準確率、False Auto、信心分箱，統計資料發現，產生 `review.html` | 結果、標準答案 → 評估數字與報表 |
 | `review_template.html` | `review.html` 的版面（HTML／CSS／JS），`evaluate.py` 把資料填入 | — |
 | `config/labels.toml` | 3 題選擇題的題目與選項定義。描述統一寫成「客戶狀態／想要／主題」，只寫正面定義，不寫「不含」等否定句，也不含任何樣本內容 | — |
-| `config/routing.toml` | 分流方式（`mode`）、條件規則的 auto 白名單、分類信心門檻、排序用的程度信心門檻；以及比較用的風險分數設定 | — |
+| `config/routing.toml` | 條件規則的 auto 白名單、分類信心門檻、排序用的程度信心門檻 | — |
 
 ---
 
@@ -98,24 +97,17 @@ flowchart LR
 auto 有兩種：草擬（客服確認後送出），以及非客服信件的自動轉交或歸檔。
 
 1. **分類信心 < 0.50** → 細項設為 `other/unclear`（待人工判斷），route = human。模型也可以直接選 `other/unclear`，代表信件看不出要處理什麼。
-2. **條件規則**（預設，`mode = "rule"`）：同時符合以下三項才是 auto，其餘一律 human。
+2. **條件規則**：同時符合以下三項才是 auto，其餘一律 human。
 
    | 條件 | auto 的允許值 |
    | --- | --- |
-   | 細項 | `[rule.auto]` 白名單內的 10 個細項 |
+   | 細項 | `[auto]` 白名單內的 10 個細項 |
    | 急迫度 | low、medium |
    | 影響程度 | low、medium |
 
    例外：`other/irrelevant`（廣告、測試單、自動回覆）不論程度一律 auto 歸檔，因為客服本來就不處理。
 
-   白名單外的 8 個細項是需寫入既有系統、需調查、需人判斷、需個案確認，或看不出要處理什麼（`other/unclear`）的類別。每個細項可以各自設定允許的急迫度與影響程度；目前 10 個細項的設定相同。
-
-**比較方案：風險分數**（`--routing-mode risk`）。細項先依 `[route]` 取得預設 route，再計算：
-
-```
-風險分數 = 1 × (1 − 分類信心) + 1 × 急迫度選 high 的信心 + 1 × 影響程度選 high 的信心
-風險分數 ≥ 0.6 → human（只會把 auto 改成 human）
-```
+   白名單外的 8 個細項是需寫入既有系統、需調查、需人判斷、需個案確認，或看不出要處理什麼（`other/unclear`）的類別。每個細項可以各自設定允許的急迫度與影響程度；目前除 `other/irrelevant` 外，9 個細項的設定相同。
 
 ### 5.3 佇列排序
 
@@ -128,41 +120,54 @@ auto 有兩種：草擬（客服確認後送出），以及非客服信件的自
 | 詢問團費是否含機場稅與小費 | `product/product_info`，信心 0.94；急迫度 low、影響程度 low | 白名單內，程度都不是 high → **auto** |
 | 明天出發遇颱風警報，問會不會延期、怎麼退費 | `product/travel_rule`，信心 0.76；急迫度 high | 白名單內，但急迫度 high → **human** |
 | 申請改期 | `order_change/booking_change`，信心 0.93 | 不在白名單 → **human** |
-| 詢問郵輪艙房能否指定樓層 | `product/product_info`，信心 0.31 | 信心 < 0.50 → **`other/unclear`、human** |
+| 詢問郵輪艙房能否指定樓層 | `product/product_info`，信心 0.41 | 信心 < 0.50 → **`other/unclear`、human** |
 
 `reason` 會寫出判斷依據，例如 `分類信心 0.76；急迫度 high 不在 auto 條件`。
 
 ---
 
-## 6. 條件規則 vs 風險分數
+## 6. 實跑結果與改進方案
 
-兩種方式都已實作，以 `--routing-mode` 切換，用 Clef 實跑比較後擇一。比較原則：**False Auto 必須為 0**，在此前提下 False Human 越少越好，並優先選擇容易解釋、不需要用樣本調參的方式。
+### 6.1 最新 Clef 實跑結果（條件規則）
 
-用最近一次 Clef 實跑（`result-20261031_014735`）的模型原始輸出，套用目前的 `routing.toml` 重放兩種方式：
+| 指標 | 結果 |
+| --- | --- |
+| 主類別準確率 | 93.8% |
+| 細項準確率 | 93.8% |
+| route 準確率 | 93.8%（45/48） |
+| **False Auto** | **0** |
+| False Human | 3 |
 
-| 方式 | route 正確 | False Auto | False Human | 需要調的參數 |
-| --- | --- | --- | --- | --- |
-| 條件規則 | 45/48 | 0 | 3 | 無（只有白名單） |
-| 風險分數（門檻 0.6） | 44/48 | 0 | 4 | 3 個權重、1 個門檻 |
-
-兩種方式共同的 False Human（多轉人工，不會造成錯誤回覆）：
+3 筆 False Human 都是「多轉人工」，不會造成錯誤回覆：
 
 | 工單 | 標註 | 模型輸出 | 原因 |
 | --- | --- | --- | --- |
-| TK-1017 | `other/business`（auto） | `product/custom_request`，信心 0.62 | 供應商（巴士公司）的包車報價被讀成客製團體需求 |
-| TK-1024 | `complaint/service_complaint`（auto） | 急迫度 high，信心 0.70 | 只有一句「電話都打不通」，被判為急迫 |
-| TK-1045 | `product/product_info`（auto） | 信心 0.28 < 0.50 | 歸為 `other/unclear` 轉人工 |
+| TK-1009 郵輪艙房 | `product/product_info`（auto） | `product_info` 排第一，但信心 0.41 < 0.50 | 機率被 `custom_request` 分散，歸 `other/unclear` |
+| TK-1036 JR PASS 兌換 | `product/product_info`（auto） | `product_info` 排第一，但信心 0.37 < 0.50 | 機率被 `document` 分散，歸 `other/unclear` |
+| TK-1017 巴士公司報價 | `other/business`（auto） | `product/custom_request`，信心 0.63 | 供應商的包車報價被讀成客製團體需求；歷次實跑都分錯 |
 
-差別只有 1 筆：TK-1008（博弈廣告）內文寫「限時、立即領」，被判為急迫度 high。條件規則對 `other/irrelevant` 不看程度、一律歸檔；風險分數不分類別，所以轉人工。
+### 6.2 過程中確認過、沒有採用的做法
 
-> 注意：`6f5312b` 之後 `labels.toml` 的選項描述也有調整，以上是用調整前的模型輸出重放，只反映路由規則的改變。正式數字以下一次 Clef 實跑為準。
->
-> 48 筆樣本中差 1 筆約 2%，不足以單憑準確率分出高下。選條件規則的理由是可解釋、不需要用樣本調參，而不是分數較高。
+| 做法 | 結果 | 不採用的理由 |
+| --- | --- | --- |
+| 調低分類信心門檻 | 前兩筆會變成 auto | 信心本身可靠（≥ 0.70 的全部分對），調門檻是用這 48 筆換分數，提高 False Auto 風險 |
+| 先分大類再分細項 | 細項多對 1 筆 | 細項層的「看不懂」被大類加總後藏起來；「可以退嗎」這筆會變成 False Auto |
+| 在選項描述寫「不含：某某」 | 平均信心從 0.84 降到 0.79 | 模型會把否定句裡的詞當成該選項的特徵；已改為只寫正面定義 |
 
-**防止 overfitting**：
+### 6.3 可能的改進方案
+
+目前的錯誤都在「信心偏低」與「相近類別難分」，而且都錯在安全方向。以下方案需要真實歷史工單驗證後才開啟：
+
+1. **用標註的歷史工單微調決策模型**：收集 50–100 筆以上、經資深客服標註的歷史工單，對 Clef 做微調或校準，提高相近類別的信心與區分度。這是根本解法。
+2. **低信心時用前幾名重新分類**：信心不足時，只保留前 3 名選項重問一次，讓機率集中。風險是會把「真的看不懂」的工單逼出確定答案，所以需要防線，例如 `other/unclear` 已在前 2 名時不重問，並用真實資料確認不產生 False Auto。
+3. **用結構化資料補強難分的類別**：例如供應商報價可以用寄件網域或供應商名單判斷，不必靠信件文字；訂單金額、出發日、未結案件也改用訂單與工單系統的資料（spec 第 5 節）。
+4. **持續修訂類別描述**：依客服對草稿與分類的回饋，修正描述的用詞；每次修改都要用同一份評估集重跑，確認 False Auto 仍為 0。
+
+### 6.4 防止 overfitting
 
 - 條件規則沒有權重。白名單由「AI 能否決定回覆內容」這個原則決定，不是用樣本調出來的。
-- 風險分數的權重依「三個訊號同等重要」固定為 1，不搜尋最佳值。門檻的選法是：必須轉人工的工單中分數最低者，要比門檻高 0.3 以上。所以選 0.6，不選剛好卡在樣本分數之間的 0.8。
+- 類別描述只寫通用定義，不放樣本內容；修改一律套用到全部選項，不針對個別工單。
+- 48 筆同時是設計時參考的資料，以上數字只代表開發集。
 
 ---
 
@@ -228,7 +233,7 @@ auto 有兩種：草擬（客服確認後送出），以及非客服信件的自
 - **不設優先等級**：等級的判斷很主觀，難以寫成一致的規則；改用急迫度、影響程度直接排序。
 - **不做個資遮罩**：本階段假設模型都在內網地端部署；若改用外部服務，再加入獨立遮罩系統。
 - **不做文字關鍵字規則**、**不放進件時間**：理由見第 8 節。
-- **不用樣本調參數**、**不做合成測試資料**：避免 overfitting、保持 PoC 規模。
+- **不用樣本調參數**、**不做合成測試資料**：避免 overfitting、保持 PoC 規模（見第 6.4 節）。
 - **不做簽核與退款**：由真人在既有系統處理。
 
 ---
@@ -262,10 +267,10 @@ poc/
 ├── pipeline/
 │   ├── preprocess.py      # 讀前 6 欄、去空白、移除 HTML 標籤；組成模型輸入
 │   ├── models.py          # 決策模型 client（llama.cpp／Jev）與 mock
-│   └── router.py          # 決定 route（條件規則／風險分數）、排序佇列
+│   └── router.py          # 依條件規則決定 route、排序佇列
 ├── config/
 │   ├── labels.toml        # 3 題選擇題的選項定義
-│   └── routing.toml       # 分流方式、auto 白名單、分類門檻、風險分數設定
+│   └── routing.toml       # auto 白名單、分類門檻、排序門檻
 ├── data/
 │   ├── sample_tickets.csv
 │   └── expected_labels.csv

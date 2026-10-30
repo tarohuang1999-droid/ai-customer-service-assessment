@@ -133,7 +133,7 @@ def write_review_html(out_path: Path, tickets: list[Ticket], decisions: list[Tri
         records.append({
             "id": d.ticket_id, "created": t.created_at, "channel": t.channel, "subject": t.subject, "body": t.body,
             "rank": d.queue_rank, "cat": d.category, "sub": d.sub_category, "route": d.route,
-            "conf": round(d.confidence, 2), "risk": round(d.risk, 2), "urg": d.urgency, "imp": d.impact, "reason": d.reason,
+            "conf": round(d.confidence, 2), "urg": d.urgency, "imp": d.impact, "reason": d.reason,
             "gold": {f: g[f] for f in FIELDS} if g else None, "diff": diff,
         })
 

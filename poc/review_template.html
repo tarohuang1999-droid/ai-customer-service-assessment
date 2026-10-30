@@ -159,7 +159,7 @@ function render() {
     <td class="num">${d.rank}</td>
     <td class="num">${esc(d.id)}<div class="muted">${esc(d.created)}<br>${esc(d.channel)}</div></td>
     <td><div class="subj">${esc(d.subject)}</div><div class="body">${esc(d.body)}</div></td>
-    <td class="cat">${esc(d.cat)}<br>${esc(d.sub)}<div class="muted">信心 ${d.conf.toFixed(2)} · 風險 ${d.risk.toFixed(2)}</div></td>
+    <td class="cat">${esc(d.cat)}<br>${esc(d.sub)}<div class="muted">信心 ${d.conf.toFixed(2)}</div></td>
     <td>${badge("r-" + d.route, d.route)}</td>
     <td class="muted">${d.urg} / ${d.imp}</td>
     <td>${goldCell(d)}</td>

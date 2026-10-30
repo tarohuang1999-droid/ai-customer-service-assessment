@@ -1,14 +1,14 @@
 # 分流設定（定義來源：../category-spec.md 第 2–4 節）
 
-mode = "rule"                    # rule：條件規則（預設）；risk：風險分數。可用 --routing-mode 覆寫
 classification_threshold = 0.50  # 細項分類信心低於此值 -> other/unclear（human）
 level_conf_threshold = 0.70      # 排序時，急迫度、影響程度的信心低於此值視為 low
 max_body_chars = 300             # 送入模型的內文長度上限（保留開頭 65% 與結尾 35%）
 
-# ── mode = "rule"：條件規則 ─────────────────────────────────────────
+# 條件規則：auto 白名單
 # 只有列在這裡的細項，且急迫度、影響程度都在允許清單內，才是 auto；其餘一律 human。
-# other/irrelevant（廣告、測試單、自動回覆）客服不處理，不論程度一律 auto 歸檔。
-[rule.auto]
+# 白名單外的細項（custom_request、booking_change、data_correction、account_access、
+# checkout_error、disruption、compensation_claim、other/unclear）一律 human。
+[auto]
 "product/product_info"        = { urgency = ["low", "medium"], impact = ["low", "medium"] }
 "product/travel_rule"         = { urgency = ["low", "medium"], impact = ["low", "medium"] }
 "product/cancel_policy"       = { urgency = ["low", "medium"], impact = ["low", "medium"] }
@@ -18,33 +18,5 @@ max_body_chars = 300             # 送入模型的內文長度上限（保留開
 "order_inquiry/member_points" = { urgency = ["low", "medium"], impact = ["low", "medium"] }
 "complaint/service_complaint" = { urgency = ["low", "medium"], impact = ["low", "medium"] }
 "other/business"              = { urgency = ["low", "medium"], impact = ["low", "medium"] }
-"other/irrelevant"            = { urgency = ["low", "medium", "high"], impact = ["low", "medium", "high"] }  # 廣告、測試單：不論程度一律歸檔
-
-# ── mode = "risk"：風險分數（比較用）────────────────────────────────
-# 細項先依 [route] 取得預設 route；風險分數 ≥ threshold 時改為 human。
-# 風險分數 = w_c × (1 − 分類信心) + w_u × 急迫度選 high 的信心 + w_i × 影響程度選 high 的信心
-[risk]
-w_c = 1.0
-w_u = 1.0
-w_i = 1.0
-threshold = 0.6
-
-[route]
-"product/product_info" = "auto"
-"product/travel_rule" = "auto"
-"product/cancel_policy" = "auto"
-"product/custom_request" = "human"
-"order_inquiry/order_status" = "auto"
-"order_inquiry/refund_status" = "auto"
-"order_inquiry/document" = "auto"
-"order_inquiry/member_points" = "auto"
-"order_change/booking_change" = "human"
-"order_change/data_correction" = "human"
-"system_issue/account_access" = "human"
-"system_issue/checkout_error" = "human"
-"trip_incident/disruption" = "human"
-"complaint/service_complaint" = "auto"
-"complaint/compensation_claim" = "human"
-"other/business" = "auto"
-"other/irrelevant" = "auto"
-"other/unclear" = "human"
+# 廣告、測試單、自動回覆：客服不處理，不論程度一律歸檔
+"other/irrelevant"            = { urgency = ["low", "medium", "high"], impact = ["low", "medium", "high"] }
