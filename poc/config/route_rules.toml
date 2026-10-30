@@ -1,16 +1,42 @@
-# 分流與優先級判定規則（Priority: P1=低優先 -> P2=一般標準 -> P3=高影響爭議 -> P4=超重要急件）
-confidence_threshold = 0.70
-urgency_conf_threshold = 0.70
-impact_conf_threshold = 0.70
-high_amount_threshold = 30000
-max_body_chars = 300
+# 分流與優先級規則（定義來源：../taxonomy-and-priority-spec.md 第 3、4 節）
+# 優先級：P4 最高、P1 最低
 
-[priority_rules]
-# P1 (Low): 非客服類別（other_non_cs：廣告、測試單、商務/媒體/人資轉介）
-p1_categories = ["other_non_cs"]
+confidence_threshold = 0.70     # 細項分類信心低於此值 -> human
+level_conf_threshold = 0.70     # 急迫度／影響程度信心低於此值 -> 視為 low
+high_amount_threshold = 30000   # 高額金錢規則
+urgent_window_hours = 72        # 72 小時內出發或使用
+max_body_chars = 300            # 送入模型的內文長度上限（保留開頭與結尾）
+fixed_p1_categories = ["other"] # 固定為 P1 的大類
 
-# P2 (Standard): 一般售前諮詢、訂單與規定查詢、一般退改、純抱怨、待補件（預設）
-# P3 (High Impact): 高額退改求償 (>30,000)、升級字眼、重複催單、實質客訴爭議（service_or_billing_dispute）、或模型 impact_level=high
-p3_sub_categories = ["service_or_billing_dispute"]
+# 急迫度 x 影響程度 -> 優先級
+[priority_matrix.high]
+high = "P4"
+medium = "P4"
+low = "P4"
 
-# P4 (Critical): 72小時內急件、旅途中危機、帳號鎖定待付款（由 regex urgent_72h 或模型 urgent_level=high 觸發）
+[priority_matrix.medium]
+high = "P3"
+medium = "P2"
+low = "P2"
+
+[priority_matrix.low]
+high = "P3"
+medium = "P2"
+low = "P2"
+
+# 硬性規則：命中即 route = human，優先級至少調升到 min_priority
+[rules.urgent_72h]
+label = "72 小時內出發或使用"
+min_priority = "P4"
+
+[rules.high_amount]
+label = "金額超過 30,000 元"
+min_priority = "P3"
+
+[rules.escalation]
+label = "客訴升級字眼"
+min_priority = "P3"
+
+[rules.repeat_followup]
+label = "重複催單"
+min_priority = "P3"

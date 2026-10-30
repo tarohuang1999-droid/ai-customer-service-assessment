@@ -36,11 +36,13 @@ class DecisionModel(Protocol):
 
 
 class _SystemOneHTTPBase:
-    """3-stage Choice client for /v1/systemone (llama.cpp Clef & Jev API).
+    """Decision-model client for /v1/systemone (local llama.cpp + Clef, or remote Jev).
 
-    Stage 1 (classification): Merged category/sub_category choice (14 options < 20)
-    Stage 2 (urgent_level): Time urgency degree choice (high / medium / low)
-    Stage 3 (impact_level): Business & financial impact degree choice (high / medium / low)
+    Each ticket is asked 3 independent choice questions:
+      1. classification: "<category>/<sub_category>" (18 options)
+      2. urgency_level:  high / medium / low
+      3. impact_level:   high / medium / low
+    The model returns a probability per option and a confidence; it generates no text.
     """
 
     def __init__(self, name: str, endpoint: str, headers: dict[str, str], timeout: float = 30.0) -> None:
@@ -83,13 +85,12 @@ class _SystemOneHTTPBase:
         t0 = time.perf_counter()
         traces: list[dict[str, Any]] = []
         try:
-            # Stage 1: Merged classification (category/sub_category, 14 options < 20)
+            # Q1: classification
             t_c0 = time.perf_counter()
             clf_cfg = labels_cfg["classification"]
             merged_criteria = {
                 pair_key: opt_val["description"]
                 for pair_key, opt_val in clf_cfg["options"].items()
-                if not opt_val.get("precheck_only", False)
             }
             q_clf = {
                 "classification": {
@@ -107,24 +108,24 @@ class _SystemOneHTTPBase:
             clf_probs = {k: round(float(v), 4) for k, v in ans1.get("probabilities", {}).items()}
             clf_conf = float(ans1.get("confidence", clf_probs.get(chosen_pair, 0.0)))
 
-            # Stage 2: urgent_level (choice: high / medium / low)
+            # Q2: urgency_level
             t_u0 = time.perf_counter()
-            urg_cfg = labels_cfg["urgent_level"]
+            urg_cfg = labels_cfg["urgency_level"]
             q_urg = {
-                "urgent_level": {
+                "urgency_level": {
                     "type": "choice",
                     "instructions": urg_cfg["instructions"],
                     "criteria": {k: v["description"] for k, v in urg_cfg["options"].items()},
                 }
             }
-            r2 = self._post_systemone("urgent_level", state_str, q_urg, traces)
+            r2 = self._post_systemone("urgency_level", state_str, q_urg, traces)
             stage_urg_ms = round((time.perf_counter() - t_u0) * 1000, 1)
-            ans2 = r2["answers"]["urgent_level"]
+            ans2 = r2["answers"]["urgency_level"]
             urgent_level = str(ans2["choice"])
             urgent_probs = {k: round(float(v), 4) for k, v in ans2.get("probabilities", {}).items()}
             urgent_conf = float(ans2.get("confidence", urgent_probs.get(urgent_level, 0.0)))
 
-            # Stage 3: impact_level (choice: high / medium / low)
+            # Q3: impact_level
             t_i0 = time.perf_counter()
             imp_cfg = labels_cfg["impact_level"]
             q_imp = {
@@ -161,7 +162,7 @@ class _SystemOneHTTPBase:
         except Exception as exc:
             elapsed = round((time.perf_counter() - t0) * 1000, 1)
             return ClassificationResult(
-                category="unknown",
+                category="unclear",
                 sub_category="insufficient_info",
                 confidence=0.0,
                 urgent_level="low",
@@ -189,7 +190,11 @@ class LlamaCppClient(_SystemOneHTTPBase):
 
 
 class JevAPIClient(_SystemOneHTTPBase):
-    """Remote Jev Decision Model API client (/v1/systemone)."""
+    """Remote Jev decision-model API (/v1/systemone).
+
+    Sends ticket text to an external service: use with synthetic data only until
+    legal approves the vendor (see answer Q3 §6).
+    """
 
     def __init__(self, endpoint: str | None = None, api_key: str | None = None, timeout: float = 30.0) -> None:
         url = endpoint or os.environ.get("JEV_API_URL", "https://api.jev.ai/v1/systemone")
@@ -201,61 +206,80 @@ class JevAPIClient(_SystemOneHTTPBase):
 
 
 class MockDecisionModel:
-    """Offline keyword-scoring baseline matching the 3-stage Choice interface."""
+    """Offline baseline: scores options with a generic keyword lexicon (no sample sentences).
+
+    It only proves the pipeline runs end-to-end without a model server; its accuracy
+    is expected to be well below the decision model.
+    """
 
     name = "mock-baseline"
 
-    _PAIR_KEYWORDS: dict[str, list[str]] = {
-        "other_non_cs/b2b_media_hr_referral": ["企業包團", "員工旅遊", "包車報價", "應徵", "履歷", "業配", "互惠合作", "媒體採訪", "記者"],
-        "complaint/pure_complaint": ["電話是裝飾品", "電話都打不通", "40 分鐘沒人接"],
-        "complaint/service_or_billing_dispute": ["導遊態度差", "行程縮水", "重複扣款", "消保官", "領隊遲到", "錯過班機", "蟑螂", "回錯資訊", "多收"],
-        "order_refund/cancellation_refund_request": ["想取消行程", "住院", "骨折開刀", "全額退費", "颱風會不會延期"],
-        "order_refund/refund_payout_request": ["匯到我台灣銀行帳戶", "退款請匯到"],
-        "order_change/schedule_or_group_change": ["想改期", "change my pickup", "Change pickup hotel", "2 人退出"],
-        "order_change/passenger_or_addon_change": ["加購嬰兒票", "英文名拼錯", "加購托運行李", "加購行李"],
-        "order_info/account_and_pricing_issue": ["帳號被鎖", "無法登入", "價格與結帳金額不同", "標價錯誤"],
-        "order_info/document_and_invoice": ["未收到確認信", "發票統編打錯", "三聯式發票", "沒收到電子票券", "QR code", "英文收據", "invoice"],
-        "order_info/order_policy_and_refund_status": ["手續費是收百分之多少", "定型化契約", "多久會入帳"],
-        "order_info/order_status_and_points": ["行程表何時寄出", "出發通知何時會來", "旺來金", "折抵"],
-        "product_inquiry/customization_request": ["指定樓層", "指定高樓層", "素食餐", "全素", "輪椅", "無障礙房"],
-        "product_inquiry/policy_and_regulation": ["護照效期", "效期剩不到六個月", "落地簽", "簽證規定"],
-        "product_inquiry/product_spec_and_price": ["費用內含項目", "導遊小費", "2 歲小孩收費", "JR PASS", "哪裡兌換", "大雪導致巴士停駛"],
+    _LEXICON: dict[str, list[str]] = {
+        "product/product_info": ["費用", "價格", "多少錢", "包含", "小費", "收費", "兌換", "票券", "艙房", "座位", "加購"],
+        "product/travel_rule": ["護照", "簽證", "入境", "效期", "颱風", "大雪", "天候", "停駛", "停航"],
+        "product/cancel_policy": ["手續費", "定型化契約", "級距", "取消規定"],
+        "product/custom_request": ["包團", "企業", "無障礙", "輪椅", "素食", "客製", "指定"],
+        "order_inquiry/order_status": ["確認信", "訂單是否成立", "行程表", "出發通知", "行前通知", "何時寄", "什麼時候寄"],
+        "order_inquiry/refund_status": ["入帳", "退款進度", "退回信用卡"],
+        "order_inquiry/document": ["收據", "invoice", "憑證", "QR code", "電子票", "補寄"],
+        "order_inquiry/member_points": ["點數", "紅利", "折抵"],
+        "order_change/booking_change": ["改期", "改到", "更改", "change", "退出", "人數", "想取消", "退費", "帳戶"],
+        "order_change/data_correction": ["拼錯", "打錯", "更正", "重開", "改開", "統編"],
+        "system_issue/account_access": ["登入", "帳號", "密碼", "驗證碼", "鎖定"],
+        "system_issue/checkout_error": ["扣款", "重複扣", "結帳", "付款失敗", "刷卡失敗", "標價"],
+        "trip_incident/disruption": ["入住", "房間", "換房", "遺失", "受傷", "滯留", "沒出現"],
+        "complaint/service_complaint": ["打不通", "沒人接", "服務態度", "等很久"],
+        "complaint/compensation_claim": ["賠償", "求償", "退還", "道歉", "消保官", "申訴", "損失"],
+        "other/business": ["報價單", "合作", "業配", "採訪", "記者", "應徵", "履歷", "職缺", "包車"],
+        "other/irrelevant": ["廣告", "優惠活動", "訂閱"],
+        "unclear/insufficient_info": [],
     }
+    _URGENCY = {"high": ["今天", "明天", "明日", "今晚", "後天", "旅途中", "現在人在"], "medium": ["下週", "急", "期限", "截止", "報帳"]}
+    _IMPACT = {
+        "high": ["賠償", "求償", "重複扣", "消保官", "媒體", "律師", "受傷", "待付款", "無法付款"],
+        "medium": ["改期", "取消", "退費", "更正", "加購", "改開", "重開"],
+    }
+
+    @staticmethod
+    def _level(text: str, lexicon: dict[str, list[str]]) -> str:
+        for level in ("high", "medium"):
+            if any(k in text for k in lexicon[level]):
+                return level
+        return "low"
 
     def classify(self, state_str: str, labels_cfg: dict[str, Any]) -> ClassificationResult:
         t0 = time.perf_counter()
-        pair_scores: dict[str, float] = {}
-        for pair, opt_val in labels_cfg["classification"]["options"].items():
-            if opt_val.get("precheck_only", False):
-                continue
-            pair_scores[pair] = 0.1
-            for kw in self._PAIR_KEYWORDS.get(pair, []):
-                if kw in state_str:
-                    pair_scores[pair] += 2.0
+        scores = {k: 0.1 for k in labels_cfg["classification"]["options"]}
+        for key, words in self._LEXICON.items():
+            if key in scores:
+                scores[key] += sum(1.0 for w in words if w in state_str)
+        body_len = len(state_str.split("內文：", 1)[-1])
+        if body_len < 10:
+            scores["unclear/insufficient_info"] += 1.5
 
-        total = sum(pair_scores.values())
-        probs = {k: round(v / total, 4) for k, v in pair_scores.items()}
-        best_pair = max(probs, key=lambda k: probs[k])
-        best_cat, best_sub = best_pair.split("/", 1)
-        conf = min(0.95, round(probs[best_pair] + 0.45, 4)) if pair_scores[best_pair] > 0.1 else 0.45
-
-        urg_level = "high" if any(k in state_str for k in ["明天", "蟑螂", "帳號被鎖"]) else "low"
-        imp_level = "high" if any(k in state_str for k in ["消保官", "重複扣款", "186,000", "45,000", "導遊態度差"]) else "low"
+        total = sum(scores.values())
+        probs = {k: round(v / total, 4) for k, v in scores.items()}
+        best = max(probs, key=lambda k: probs[k])
+        top = scores[best]
+        conf = 0.45 if top <= 0.1 else min(0.95, 0.55 + 0.15 * (top - 0.1))
+        category, sub = best.split("/", 1)
+        urgency = self._level(state_str, self._URGENCY)
+        impact = self._level(state_str, self._IMPACT)
         elapsed = round((time.perf_counter() - t0) * 1000, 2)
 
         return ClassificationResult(
-            category=best_cat,
-            sub_category=best_sub,
-            confidence=conf,
-            urgent_level=urg_level,
-            urgent_conf=0.90,
-            impact_level=imp_level,
-            impact_conf=0.90,
+            category=category,
+            sub_category=sub,
+            confidence=round(conf, 4),
+            urgent_level=urgency,
+            urgent_conf=0.80,
+            impact_level=impact,
+            impact_conf=0.80,
             model_name=self.name,
             stage_classification_ms=elapsed,
             classification_probs=probs,
-            urgent_probs={urg_level: 0.90},
-            impact_probs={imp_level: 0.90},
+            urgent_probs={urgency: 0.80},
+            impact_probs={impact: 0.80},
         )
 
 
