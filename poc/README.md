@@ -68,14 +68,11 @@ JEV_API_KEY=... uv run python triage.py --model jev
 
 ```mermaid
 flowchart LR
-    In([工單 CSV]) --> Pre[前處理<br>欄位裁剪、NFKC、HTML、縮排、簽名檔]
-    Pre --> M[決策模型 3 題<br>細項分類／急迫度／影響程度<br>輸入含進件時間]
-    M -->|逾時或錯誤| Fail([human · P3])
-    M --> Map[routing.toml 對應表<br>細項 → route<br>急迫度 × 影響程度 → priority]
-    Map --> C{分類信心 < 0.70？}
-    C -->|是| H([route = human])
-    C -->|否| Out([triage_result.csv])
-    H --> Out
+    In([工單 CSV]) --> Pre[前處理]
+    Pre --> M[導入決策模型分流]
+    M -->|逾時或錯誤| Fail(系統報錯)
+    M --> Map[routing]
+    Map --> Out([triage_result.csv])
 ```
 
 所有判斷都在兩個設定檔：
