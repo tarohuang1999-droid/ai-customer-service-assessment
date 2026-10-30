@@ -1,5 +1,7 @@
 # 決策模型的 3 題選擇題（定義來源：../category-priority-spec.md）
-# 描述只寫通用定義與邊界，不得寫入任何樣本內容。
+# 描述格式統一為「客戶狀態／想要／主題」三段，只寫正面定義：
+# - 不寫「不含」等否定句（模型會把否定句裡提到的詞當成該選項的特徵）
+# - 不寫任何樣本內容；邊界的討論寫在 spec，供人工標註使用
 # route 對應表與分流參數在 routing.toml。
 
 [classification]
@@ -7,68 +9,68 @@ instructions = "根據客服工單的主旨與內文，選出客戶主要訴求�
 
 # product：不需訂單資料即可回答
 [classification.options."product/product_info"]
-description = "已公開的產品資訊：行程內容、費用包含項目、計價方式、票券兌換與使用方式、艙房或座位的選擇規則。不含：已成立訂單的內容查詢；需另外報價或個案確認的需求。"
+description = "客戶狀態：尚未下單或一般詢問。想要：產品資訊。主題：行程或商品的內容、費用包含的項目、計價方式、票券的兌換與使用方式、座位或房型的選擇規則。可用公開的產品資料回答。"
 
 [classification.options."product/travel_rule"]
-description = "旅遊規定詢問：證照效期、簽證與入境規定、天候或不可抗力時是否出團與退費通則。不含：已出發後正在發生的異常。"
+description = "客戶狀態：出發前。想要：旅遊相關規定。主題：證照效期、簽證與入境規定、遇到天候或不可抗力時是否出團以及如何退費的通則。可用公開的規定回答。"
 
 [classification.options."product/cancel_policy"]
-description = "退改規定詢問：取消或改期的手續費比例、定型化契約級距。不含：客戶已決定並申請取消；沒有說明情境、無法判斷意圖的極短詢問。"
+description = "客戶狀態：出發前、仍在考慮。想要：退改規定。主題：取消或改期的手續費比例、定型化契約的級距說明。可用公開的契約條文回答。"
 
 [classification.options."product/custom_request"]
-description = "客製化服務：需另外報價或向供應商個案確認，例如團體或企業包團、無障礙安排、特殊餐食。不含：詢問既有選項或規則是否允許。"
+description = "客戶狀態：旅客，尚未成行。想要：特別安排或專屬報價。主題：團體或企業包團的報價、無障礙設施、特殊餐食等需要向供應商個案確認的需求。"
 
 # order_inquiry：需唯讀查詢訂單或會員資料
 [classification.options."order_inquiry/order_status"]
-description = "已成立訂單的狀態與內容查詢：訂單是否成立、行前通知或行程表何時寄送、已訂行程可加購項目的價格與期限。不含：要求客服修改訂單。"
+description = "客戶狀態：已有訂單。想要：查詢訂單資訊。主題：訂單是否成立、行前通知或行程表何時寄出、已訂行程可加購的項目、價格與購買期限。可用訂單資料回答。"
 
 [classification.options."order_inquiry/refund_status"]
-description = "退款進度查詢：已申請的退款處理到哪裡、多久入帳。不含：申請退款。"
+description = "客戶狀態：已申請退款。想要：查詢退款進度。主題：退款處理到哪個階段、預計何時入帳、退回哪個帳戶或信用卡。"
 
 [classification.options."order_inquiry/document"]
-description = "文件索取：補寄確認信或電子憑證、開立新收據。不含：已開立單據的更正或改開；票券如何兌換使用。"
+description = "客戶狀態：已有訂單。想要：取得文件。主題：補寄訂單確認信、電子憑證或票券檔案，開立新的收據或證明文件。"
 
 [classification.options."order_inquiry/member_points"]
-description = "會員點數查詢：點數餘額、折抵上限與到期規則。"
+description = "客戶狀態：會員。想要：點數資訊。主題：點數餘額、每筆訂單可折抵的上限、點數的取得方式與到期規則。"
 
 # order_change：需在既有系統寫入
 [classification.options."order_change/booking_change"]
-description = "訂單變更申請：對已成立訂單要求改期、改人數、改接送地點、代為加購、取消、退費，或提供退款帳戶。不含：只詢問規定或價格。"
+description = "客戶狀態：已有訂單。想要：請客服修改或取消訂單。主題：改期、改人數、改接送地點、代為加購、取消行程、申請退費或提供退款帳戶，通常伴隨費用調整。"
 
 [classification.options."order_change/data_correction"]
-description = "資料更正申請：更正旅客姓名或證件資料，或更正、改開已開立的發票。不含：開立新收據。"
+description = "客戶狀態：已有訂單。想要：更正錯誤的資料。主題：旅客的姓名或證件資料需要修正，已開立的發票資料需要更正或改開。"
 
 # system_issue：需調查
 [classification.options."system_issue/account_access"]
-description = "帳號存取問題：無法登入、帳號被鎖定、收不到驗證碼。"
+description = "客戶狀態：會員。想要：恢復帳號使用。主題：無法登入、帳號被鎖定、收不到驗證碼或重設密碼的通知。"
 
 [classification.options."system_issue/checkout_error"]
-description = "結帳與扣款異常：付款失敗、重複扣款、扣款或結帳金額與標價不符。不含：退款進度查詢。"
+description = "客戶狀態：付款中或已付款。想要：查明金額問題。主題：付款失敗、同一筆訂單被重複扣款、扣款或結帳金額與網頁標價不一致。"
 
 # trip_incident：已出發後的即時協助
 [classification.options."trip_incident/disruption"]
-description = "旅途異常：客戶已出發，正在發生需要即時協助的問題，例如住宿問題、人員未到、證件遺失、受傷、滯留。不含：出發前的天候詢問；事後要求賠償。"
+description = "客戶狀態：已經出發、正在旅途中。想要：立即協助。主題：住宿或交通出問題、導遊或接送人員沒出現、證件或行李遺失、受傷或生病、滯留當地。"
 
 # complaint
 [classification.options."complaint/service_complaint"]
-description = "服務抱怨：對服務品質或聯絡管道表達不滿，沒有提出具體賠償或退費要求。"
+description = "客戶狀態：任何階段。想要：表達不滿並希望改善。主題：抱怨服務品質、等待太久或聯絡不到客服，訴求停留在道歉或說明。"
 
 [classification.options."complaint/compensation_claim"]
-description = "求償申訴：要求賠償、退還費用、正式道歉，或揚言向外部單位申訴。"
+description = "客戶狀態：通常已成行或已付款。想要：補償。主題：要求賠償損失、退還部分或全部費用、正式道歉，或表示要向消保單位、媒體或網路公開申訴。"
 
 # other：非客服
 [classification.options."other/business"]
-description = "對外往來：寄件者不是旅客，例如供應商或合作廠商、媒體、求職者，需轉交其他部門。不含：旅客的團體旅遊詢價。"
+description = "寄件者：廠商、合作夥伴、媒體或求職者，以工作身分來信。想要：洽談業務。主題：供應商報價與合約、行銷合作提案、採訪邀約、應徵工作，需要轉給其他部門。"
 
 [classification.options."other/irrelevant"]
-description = "無關信件：廣告、測試單、自動回覆。"
+description = "寄件者：與旅遊服務無關的來源。內容：廣告推銷、系統測試、自動回覆或退信通知，不需要回覆。"
 
 # unclear
 [classification.options."unclear/insufficient_info"]
-description = "資訊不足：內容太短或沒有說明對象，無法判斷要處理哪一筆訂單或哪件事，需要請客戶補充。"
+description = "客戶狀態：不明。內容：只有一兩句話，沒有說明是哪個行程或訂單、想做什麼，需要先請客戶補充資料才能處理。"
 
 [urgency_level]
-instructions = "根據工單內容，判斷這件事需要多快處理。語氣急迫或情緒激動本身不代表急迫。"
+instructions = "根據工單中提到的出發或使用時間，以及客戶是否已在旅途中，判斷這件事需要多快處理。"
 
 [urgency_level.options.high]
 description = "信件提到 72 小時內（今天、明天、後天）要出發或使用，或客戶已在旅途中需要即時協助。"

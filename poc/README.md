@@ -75,7 +75,7 @@ flowchart LR
 | `pipeline/router.py` | 依 `routing.toml` 決定 route（第 5 節），並依急迫度、影響程度排序佇列 | 模型結果 → `TriageDecision` |
 | `evaluate.py` | 比對 `expected_labels.csv`，計算準確率、False Auto、信心分箱，統計資料發現，產生 `review.html` | 結果、標準答案 → 評估數字與報表 |
 | `review_template.html` | `review.html` 的版面（HTML／CSS／JS），`evaluate.py` 把資料填入 | — |
-| `config/labels.toml` | 3 題選擇題的題目與選項定義。只寫通用定義與邊界，不含任何樣本內容 | — |
+| `config/labels.toml` | 3 題選擇題的題目與選項定義。描述統一寫成「客戶狀態／想要／主題」，只寫正面定義，不寫「不含」等否定句，也不含任何樣本內容 | — |
 | `config/routing.toml` | 細項 → route 對應表、分類信心門檻、風險分數權重與門檻、排序用的程度信心門檻 | — |
 
 ---
@@ -150,6 +150,8 @@ auto 有兩種：草擬（客服確認後送出），以及非客服信件的自
 | 部署 | Clef 可用 llama.cpp 在內網執行，工單不出內網 | 多半依賴外部 API |
 
 代價是信心是否可靠需要驗證：`review.html` 的「分類信心分箱」比較各信心區間的準確率。
+
+**選項描述的寫法**：實測發現，在描述裡寫「不含：某某」反而會讓模型把「某某」當成這個選項的特徵，信心因此下降。所以 `labels.toml` 的描述只寫正面定義，並統一用「客戶狀態／想要／主題」三段，讓相鄰類別的差異落在這三個維度上（例如「已有訂單＋查詢」和「已有訂單＋要求修改」）。類別之間的邊界寫在 spec，作為人工標註的依據。
 
 ---
 
