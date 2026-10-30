@@ -1,6 +1,6 @@
 # 工單分流 PoC（Ticket Triage Pipeline）
 
-讀取 `data/sample_tickets.csv`（48 筆），對每張工單輸出 `category`、`sub_category`、`route`（auto／human）、佇列排序與判斷依據。類別與 route 的定義以 [category-priority-spec.md](../category-priority-spec.md) 為準。
+讀取 `data/sample_tickets.csv`（48 筆），對每張工單輸出 `category`、`sub_category`、`route`（auto／human）、佇列排序與判斷依據。類別與 route 的定義以 [category-spec.md](../category-spec.md) 為準。
 
 - 只使用 Python 標準庫，沒有第三方套件。
 - 只驗證「分流」這一段，不生成回覆草稿。

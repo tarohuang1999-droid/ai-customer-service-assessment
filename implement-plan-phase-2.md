@@ -136,7 +136,7 @@ i = 影響程度選 high 時的信心，否則為 0
 
 | # | 檔案 | 內容 |
 | --- | --- | --- |
-| 0-1 | `category-priority-spec.md` | 移除優先級章節，改為排序規則；route 原則改為原則 3，並定義 auto 的兩種意思（草擬、自動轉交或歸檔）；依 4.4 調整邊界；寫入 4.1 的流程（風險分數、`other/unclear`）；移除「模型輸入包含進件時間」 |
+| 0-1 | `category-spec.md` | 移除優先級章節，改為排序規則；route 原則改為原則 3，並定義 auto 的兩種意思（草擬、自動轉交或歸檔）；依 4.4 調整邊界；寫入 4.1 的流程（風險分數、`other/unclear`）；移除「模型輸入包含進件時間」 |
 | 0-2 | `poc/data/expected_labels.csv` | 移除 priority 欄；套用 4.4 的 route 與細項修改 |
 | 0-3 | `poc/config/*`、`poc/pipeline/router.py`、`poc/triage.py`、`poc/evaluate.py`、`poc/review_template.html` | 移除優先級的程式與設定；輸出依急迫度、影響程度排序；route 對應表與細項描述依 4.4 調整。風險分數與 `other/unclear` 留在 Step 4 |
 | 0-4 | `answer.md` | 移除優先級的相關內容，改為排序；auto 的兩種意思；依 4.4 調整類別表與範例 |
@@ -148,7 +148,7 @@ i = 影響程度選 high 時的信心，否則為 0
 
 ### Step 1：spec 定義對齊
 
-- **檔案**：`category-priority-spec.md`
+- **檔案**：`category-spec.md`
 - **內容**：
   - §1 route 原則改寫為原則 3；「需寫入系統、需調查或判斷責任、需供應商確認」改成「AI 無法決定內容」的具體情況。
   - §2 依 4.4 調整邊界：客訴補上「補償與安撫屬人的判斷」；影響程度 high 補上「可能導致無法成行」（若採 #11）。
