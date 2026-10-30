@@ -1,4 +1,149 @@
-# Implement Plan：分類機制重構與文件一致性修正
+# Implement Plan
+
+- **第三輪（本節，待討論後執行）**：依 Clef 實跑結果與作者意見，重新審視標準答案、分流定義與流程。
+- 第一、二輪計畫已完成，保留在文末作為紀錄。
+
+---
+
+# 第三輪：標準答案審視、分流定義與流程修正
+
+## 0. 作者已確定的原則
+
+1. **False Auto 絕對禁止**：寧可多轉人工（False Human），也不能讓應由人處理的工單進 auto。
+2. **先審視標準答案，再改流程**：評估差可能是標準答案本身不合理。
+3. **進件時間不放進模型輸入**，並在 README 說明原因。
+4. **human 的定義**：AI 無法決定回覆的絕大部分內容，或工單具急迫性，就是 human。反過來說，**auto = AI 能決定回覆的絕大部分內容，且不急迫**。標準答案若與此定義不符，應調整。
+5. README 要補充：pipeline 各模組的職責、分類邏輯；answer、spec 也要對齊。
+6. 流程圖只畫主要階段，不寫細節。
+
+## 1. 這次 Clef 實跑的診斷摘要（作為修正依據）
+
+| 指標 | 上一版 Clef | 這次 Clef | 主因 |
+| --- | --- | --- | --- |
+| 主類別／細項 | 95.8% | 95.8% | 沒變。分類信心 ≥ 0.70 的 40 筆全部正確 |
+| route | 93.8% | 85.4% | ① 2 筆 False Auto：類別是 auto，急迫度也判成 high，但 route 不看程度<br>② 5 筆 False Human：分類正確但信心 < 0.70 |
+| priority | 89.6% | 75.0% | 拿掉了「程度信心 < 0.70 視為 low」，11 筆低信心的急迫度 high 被採用，判成 P4 |
+| 平均分類信心 | 0.84 | 0.80 | 改寫描述（加入「不含」）或加入進件時間，兩者同時上線，原因待分離 |
+
+用同一份 Clef 輸出模擬「類別決定 route，急迫度或影響程度為 high 時強制 human，程度信心門檻 0.70」：細項 46/48、route 43/48、priority 46/48、**False Auto 0**。
+
+---
+
+## Phase A：討論與定案（不動檔案）
+
+### A1. 標準答案逐筆審視
+
+依原則 4 重新檢查 48 筆，下表是有疑問或模糊的項目。其餘 35 筆在新定義下沒有爭議。
+
+| # | 工單 | 目前標註 | 疑問 | 選項 | 我的建議 |
+| --- | --- | --- | --- | --- | --- |
+| 1 | TK-1004 打電話 40 分鐘沒人接（順帶問行程表） | complaint/service_complaint · human · P2 | 回覆內容（致歉＋行程表寄送時間）AI 寫得出來，依新定義可能是 auto | a. 維持 human<br>b. 改 auto | **a**。客訴的關鍵是要不要補償、怎麼安撫，這是人的判斷，AI 決定不了。spec 補上「客訴一律 human」的理由 |
+| 2 | TK-1024 電話都打不通（匿名、一句話） | complaint/service_complaint · human · P2 | 同上，而且內容極短，也可視為 `unclear` | a. 維持 complaint · human<br>b. 改 unclear · auto（補件模板） | **a**。有明確的不滿，不是資訊不足 |
+| 3 | TK-1009 郵輪艙房可否指定樓層 | product/product_info · auto · P2 | 兩次 Clef 信心都偏低（0.54、0.31），會和 custom_request 混淆；能否指定通常要看郵輪公司 | a. 維持 auto<br>b. 改 custom_request · human | **a**。知識庫可以回答「是否保證指定、如何備註需求」，AI 能決定內容。模型的混淆由描述修正處理 |
+| 4 | TK-1045 加購托運行李要加多少錢、出發前三天來得及嗎 | product/product_info · auto · P2 | 客戶似乎已有訂單，價格要看該筆訂單的航空公司，比較像 order_inquiry | a. product/product_info<br>b. order_inquiry（需唯讀查詢訂單） | **b**，route 仍為 auto。spec 中 product 與 order_inquiry 的界線是「需不需要訂單資料」，這筆需要 |
+| 5 | TK-1040 泰國簽證最近有變，要不要辦電子簽 | product/travel_rule · auto · P2 | 客戶問的是最新變動，知識庫可能過期，AI 不一定能決定內容 | a. 維持 auto（草擬階段查無有效依據再轉 human）<br>b. 改 human | **a**。分流階段無法得知知識庫新不新；這是草擬階段的降級，不是分流錯誤。answer Q3 §4 已有規則 |
+| 6 | TK-1030 網頁標價與結帳金額不同 | system_issue/checkout_error · human · P2 | 價差可能是正常的日期加價（AI 可解釋），也可能是系統錯誤 | a. 維持 human<br>b. 改 auto | **a**。是不是錯誤要查系統才知道，AI 無法決定內容 |
+| 7 | TK-1016 帳號被鎖，有待付款訂單 | system_issue/account_access · human · **P2** | 你先前認為是 P3，後來又說「交易無法完成」影響不大 | P2 或 P3 | 請你決定。若選 P3，影響程度 high 的定義要加回「待付款訂單可能逾期」這類通用描述，不能只為這筆調整 |
+| 8 | TK-1031 再次催問重複扣款，揚言今天就請銀行止付 | system_issue/checkout_error · human · P3 | 「今天再不回就止付」是當日期限，急迫度可能是 high，也就是 P4 | P3 或 P4 | **P3**。急迫度的定義是出發或使用時間；客戶設定的回覆期限不算急迫，算影響程度 high |
+| 9 | TK-1019 飯店與網頁不符，揚言找消保官 | complaint/compensation_claim · human · P3 | 看不出客人是否還在住，若仍在旅途中應歸 trip_incident · P4 | a. compensation_claim · P3<br>b. trip_incident · P4 | **a**。內文沒有在旅途中的訊號，以客訴與申訴為主 |
+| 10 | TK-1044 客服報錯價，要求退還 1,500 元 | complaint/compensation_claim · human · P3 | 金額小，P3 來自「求償類下限 P3」；是否所有求償都該 P3 | a. 維持下限 P3<br>b. 取消下限，改由影響程度決定 | **a**。求償涉及公司對外承諾，維持下限比較簡單、好解釋 |
+| 11 | TK-1028 護照英文名拼錯，兩週後出發 | order_change/data_correction · human · P2 | 名字不符可能無法登機，影響程度可能是 high，也就是 P3 | P2 或 P3 | **P3**。影響程度 high 的定義補上「可能導致無法成行」 |
+| 12 | TK-1033 「可以退嗎」 | unclear/insufficient_info · auto · P2 | 模型兩次都判 cancel_policy；兩者 route 都是 auto | 維持 unclear | **維持**。不知道是哪筆訂單、退什麼，回覆只能是補件模板 |
+| 13 | TK-1047 記者採訪，截稿本週五 | other/business · human · P1 | 有截稿期限，排在最後是否合理 | 維持 P1 或 P2 | **維持 P1**。轉交公關即可，不佔客服佇列 |
+
+### A2. 流程定案
+
+依原則 1 和原則 4，建議流程如下：
+
+1. Clef 回答 3 題：細項分類、急迫度、影響程度。
+2. **route**：
+   - 細項對應表決定預設 route：AI 能否決定回覆內容。
+   - 急迫度 high，或影響程度 high（且該程度的信心 ≥ 0.70）→ 強制 human。程度只能把 route 往 human 升，不能反過來。
+   - 分類信心 < 0.70 → 歸到「待人工判斷」，route = human。
+3. **priority**：急迫度 × 影響程度對應表（程度信心 < 0.70 視為 low）→ 套用細項下限 → `other` 固定 P1。
+4. **模型逾時或錯誤**：route = human、P3，並在 `run.log` 記錄發生在哪一題、錯誤類型、重試次數。
+
+需要你決定的事：
+
+| # | 決策 | 選項 | 我的建議 |
+| --- | --- | --- | --- |
+| D1 | 低信心工單歸到哪裡 | a. `other`（你原本的想法）<br>b. 新增 `unclear/low_confidence`「待人工判斷」，route = human，優先級依程度決定 | **b**。這次低信心的 8 筆裡有取消申請、團體退出，歸到 `other` 會被固定成 P1、沉到佇列最底 |
+| D2 | 影響程度 high 是否也強制 human | a. 只有急迫度 high<br>b. 急迫度或影響程度 high | **b**。False Auto 絕對禁止，多一道安全網；這份樣本模擬下不會增加 False Human |
+| D3 | 權重調整（急迫度、影響程度比分類重） | 先不做 | **先不做**。這次資料中，分類是最可靠的訊號，急迫度最不可靠（48 筆中有 30 筆信心 < 0.70）。若之後要加權重，建議用在 priority，不用在 route |
+| D4 | 分類信心門檻 | 0.70 或 0.50 | **維持 0.70**。False Auto 絕對禁止的前提下，寧可多 5 筆 False Human |
+
+### A3. 流程圖
+
+你提到已調整流程圖，但目前磁碟上的 `answer.md` 與 `poc/README.md` 沒有變動。請存檔後告訴我是哪個檔案，我在你的版本上補充。補充原則：只畫「前處理 → 決策模型 3 題 → 對應表 → route／priority → 草擬或人工」這幾個階段，細節寫在文字說明裡。
+
+---
+
+## Phase B：定義對齊（answer、spec、README）
+
+| 檔案 | 修改 |
+| --- | --- |
+| `category-priority-spec.md` §1 | route 原則改寫為原則 4：「auto = AI 能決定回覆的絕大部分內容，且不急迫；其餘為 human」。原本「依需要的動作決定」改成這個原則下的說明：需寫入系統、需調查或判斷責任、需供應商確認，都屬於「AI 無法決定內容」 |
+| spec §2 | 依 A1 結果調整邊界；客訴補上「是否補償與如何安撫屬人的判斷」；影響程度 high 補上「可能導致無法成行」（若採 A1 #11） |
+| spec §3、§4 | 寫入 A2 的流程：程度強制 human、程度信心門檻、低信心去向、錯誤處理 |
+| spec §3 | 移除「模型輸入包含進件時間」 |
+| answer Q2 §3 | 分類原則與 route 定義改成原則 4 的說法；類別表維持大類層級 |
+| answer Q3 §1、§4 | 對應表的轉人工條件改為 A2 的版本 |
+| answer Q3 §2 | 流程圖改用你的版本並補充（A3） |
+
+完成標準：三份文件的 route 定義、轉人工條件、優先級規則逐字一致。
+
+---
+
+## Phase C：修訂標準答案
+
+- 依 A1 決定修改 `poc/data/expected_labels.csv`。
+- 每一筆修改都要能用 spec 的定義解釋，不為了提高分數改標註。
+- 一個 commit：`data(poc): revise expected labels after review`。
+
+---
+
+## Phase D：PoC 修正（依 A2 定案）
+
+| 檔案 | 修改 |
+| --- | --- |
+| `pipeline/preprocess.py` | 模型輸入移除進件時間，只保留主旨與內文 |
+| `config/routing.toml` | 新增程度強制 human 的設定（`[route_override]`）、程度信心門檻（`level_conf_threshold`）、低信心去向（依 D1） |
+| `config/labels.toml` | 新增 `unclear/low_confidence`（若採 D1-b）；A1 涉及的邊界同步；急迫度描述移除「距進件時間」，改為「信件中提到 72 小時內要出發或使用」 |
+| `pipeline/router.py` | 依 A2 的 4 個步驟重寫；`reason` 維持只寫分類信心，若被程度強制轉 human 或歸到低信心，再加一句說明 |
+| `triage.py` | 模型錯誤寫入 `run.log`：題目、錯誤類型、重試次數 |
+| `evaluate.py`／`review_template.html` | False Auto 不為 0 時，報表最上方顯示紅色警示；列出 False Auto 的工單 |
+
+---
+
+## Phase E：驗證（需要作者用 Clef 實跑）
+
+1. **主要執行**：Phase D 完成後跑一次，目標是 False Auto = 0，並檢查 False Human 是否都屬於可接受的保守判斷。
+2. **對照組（選做）**：用相同的模型輸入，分別以上一版和這一版的 `labels.toml` 各跑一次，確認信心下降是不是「不含」寫法造成的。若是，「不含」改成只寫在 spec，不放進給模型的描述。
+
+---
+
+## Phase F：README 補充
+
+| 章節 | 內容 |
+| --- | --- |
+| Pipeline 各模組 | 新增一節，逐一說明 `triage.py`、`preprocess.py`、`models.py`、`router.py`、`evaluate.py`、`review_template.html`、`labels.toml`、`routing.toml` 的職責、輸入輸出，以及彼此怎麼串接 |
+| 分類邏輯 | 新增一節：3 題各自問什麼、細項怎麼決定 route（原則 4）、程度怎麼強制 human、低信心去向、priority 怎麼算，並附 2–3 個例子走一遍 |
+| 為什麼不放進件時間 | 說明：急迫度只依信件中的相對日期（今天、明天）判斷；精確的 72 小時應由訂單 API 的出發日計算（正式環境）；加入進件時間後信心下降，原因未確認前先不使用 |
+| 流程圖 | 換成 A3 的版本 |
+
+---
+
+## Phase G：收尾
+
+- 每個 Phase 一個 commit。
+- 檢查 answer 與 spec 中沒有工單 ID。
+- 確認 spec、`routing.toml`、`labels.toml`、answer、README 五處的 route 定義與轉人工條件一致。
+
+---
+
+# 附錄：第一、二輪計畫（已完成）
+
+## 第一輪：分類機制重構與文件一致性修正
 
 對應 `review-claude.md`。目標：
 
