@@ -1,0 +1,49 @@
+queue_rank,ticket_id,category,sub_category,route,confidence,urgency,impact,reason_code,reason,model
+1,TK-1021,product,travel_rule,human,0.7751,high(0.84),high(0.60),urgency_high,分類信心 0.78；急迫度 high：72 小時內要出發或使用，或客戶已在旅途中，由客服優先處理,llamacpp-clef
+2,TK-1042,order_inquiry,document,human,0.8630,high(0.86),high(0.39),urgency_high,分類信心 0.86；急迫度 high：72 小時內要出發或使用，或客戶已在旅途中，由客服優先處理,llamacpp-clef
+3,TK-1011,complaint,compensation_claim,human,0.8473,low(0.34),high(0.90),not_in_whitelist,分類信心 0.85；涉及賠償與公司承諾，需要由客服判斷,llamacpp-clef
+4,TK-1013,system_issue,checkout_error,human,0.8713,low(0.74),high(0.93),not_in_whitelist,分類信心 0.87；扣款或金額異常需要查帳確認，由客服處理,llamacpp-clef
+5,TK-1019,complaint,compensation_claim,human,0.6063,medium(0.49),high(0.84),not_in_whitelist,分類信心 0.61；涉及賠償與公司承諾，需要由客服判斷,llamacpp-clef
+6,TK-1029,complaint,compensation_claim,human,0.7420,low(0.12),high(0.90),not_in_whitelist,分類信心 0.74；涉及賠償與公司承諾，需要由客服判斷,llamacpp-clef
+7,TK-1031,system_issue,checkout_error,human,0.9104,low(0.55),high(0.92),not_in_whitelist,分類信心 0.91；扣款或金額異常需要查帳確認，由客服處理,llamacpp-clef
+8,TK-1037,trip_incident,disruption,human,0.8535,high(0.49),high(0.84),not_in_whitelist,分類信心 0.85；客戶已在旅途中，需要即時協助，由客服處理,llamacpp-clef
+9,TK-1044,complaint,compensation_claim,human,0.7716,low(0.83),high(0.86),not_in_whitelist,分類信心 0.77；涉及賠償與公司承諾，需要由客服判斷,llamacpp-clef
+10,TK-1002,order_change,booking_change,human,0.7919,medium(0.52),medium(0.73),not_in_whitelist,分類信心 0.79；需要在訂單系統改單或退費，涉及費用調整，由客服處理,llamacpp-clef
+11,TK-1007,order_change,booking_change,human,0.9306,low(0.40),medium(0.92),not_in_whitelist,分類信心 0.93；需要在訂單系統改單或退費，涉及費用調整，由客服處理,llamacpp-clef
+12,TK-1043,order_change,booking_change,human,0.7287,low(0.47),medium(0.73),not_in_whitelist,分類信心 0.73；需要在訂單系統改單或退費，涉及費用調整，由客服處理,llamacpp-clef
+13,TK-1005,order_change,booking_change,human,0.8942,low(0.63),medium(0.56),not_in_whitelist,分類信心 0.89；需要在訂單系統改單或退費，涉及費用調整，由客服處理,llamacpp-clef
+14,TK-1006,product,custom_request,human,0.8798,low(0.92),low(0.92),not_in_whitelist,分類信心 0.88；需要另外報價或向供應商個案確認，AI 無法決定回覆內容,llamacpp-clef
+15,TK-1009,other,unclear,human,0.4122,low(0.49),low(0.91),low_confidence,分類信心 0.41；低於門檻，系統無法確定類別（模型原判 product/product_info），交由客服判斷,llamacpp-clef
+16,TK-1010,order_change,data_correction,human,0.9122,medium(0.46),medium(0.26),not_in_whitelist,分類信心 0.91；需要更正旅客資料或已開立的發票，由客服在既有系統處理,llamacpp-clef
+17,TK-1012,order_change,booking_change,human,0.9162,medium(0.41),medium(0.30),not_in_whitelist,分類信心 0.92；需要在訂單系統改單或退費，涉及費用調整，由客服處理,llamacpp-clef
+18,TK-1015,order_change,booking_change,human,0.5984,low(0.38),high(0.56),not_in_whitelist,分類信心 0.60；需要在訂單系統改單或退費，涉及費用調整，由客服處理,llamacpp-clef
+19,TK-1016,system_issue,account_access,human,0.9416,low(0.77),medium(0.53),not_in_whitelist,分類信心 0.94；帳號問題需要查證並在系統操作，由客服處理,llamacpp-clef
+20,TK-1017,product,custom_request,human,0.6277,low(0.70),low(0.54),not_in_whitelist,分類信心 0.63；需要另外報價或向供應商個案確認，AI 無法決定回覆內容,llamacpp-clef
+21,TK-1022,product,custom_request,human,0.8746,low(0.58),low(0.80),not_in_whitelist,分類信心 0.87；需要另外報價或向供應商個案確認，AI 無法決定回覆內容,llamacpp-clef
+22,TK-1023,order_change,booking_change,human,0.6059,medium(0.31),medium(0.51),not_in_whitelist,分類信心 0.61；需要在訂單系統改單或退費，涉及費用調整，由客服處理,llamacpp-clef
+23,TK-1028,order_change,data_correction,human,0.9334,medium(0.68),medium(0.08),not_in_whitelist,分類信心 0.93；需要更正旅客資料或已開立的發票，由客服在既有系統處理,llamacpp-clef
+24,TK-1030,system_issue,checkout_error,human,0.7515,low(0.84),high(0.45),not_in_whitelist,分類信心 0.75；扣款或金額異常需要查帳確認，由客服處理,llamacpp-clef
+25,TK-1032,product,custom_request,human,0.8669,low(0.91),low(0.85),not_in_whitelist,分類信心 0.87；需要另外報價或向供應商個案確認，AI 無法決定回覆內容,llamacpp-clef
+26,TK-1033,other,unclear,human,0.4713,low(0.91),low(0.78),low_confidence,分類信心 0.47；低於門檻，系統無法確定類別（模型原判 product/cancel_policy），交由客服判斷,llamacpp-clef
+27,TK-1036,other,unclear,human,0.3698,low(0.72),low(0.90),low_confidence,分類信心 0.37；低於門檻，系統無法確定類別（模型原判 product/product_info），交由客服判斷,llamacpp-clef
+28,TK-1039,order_change,data_correction,human,0.9038,low(0.64),low(0.86),not_in_whitelist,分類信心 0.90；需要更正旅客資料或已開立的發票，由客服在既有系統處理,llamacpp-clef
+29,TK-1045,product,product_info,auto,0.8681,medium(0.78),low(0.82),auto_ok,分類信心 0.87；一般產品資訊，知識庫查得到答案，AI 產生附來源的草稿,llamacpp-clef
+30,TK-1001,order_inquiry,order_status,auto,0.8749,low(0.40),low(0.38),auto_ok,分類信心 0.87；只需唯讀查詢訂單狀態，AI 查詢後產生草稿,llamacpp-clef
+31,TK-1003,product,product_info,auto,0.9452,low(0.84),low(0.90),auto_ok,分類信心 0.95；一般產品資訊，知識庫查得到答案，AI 產生附來源的草稿,llamacpp-clef
+32,TK-1004,complaint,service_complaint,auto,0.7810,low(0.95),low(0.66),auto_ok,分類信心 0.78；抱怨但未要求補償，AI 草擬致歉與說明，客服確認語氣後送出,llamacpp-clef
+33,TK-1008,other,irrelevant,auto,0.8019,high(0.39),high(0.36),auto_ok,分類信心 0.80；廣告、測試單或自動回覆，客服不需處理，直接歸檔,llamacpp-clef
+34,TK-1014,product,travel_rule,auto,0.8904,low(0.63),low(0.75),auto_ok,分類信心 0.89；證照、簽證與天候通則有公開規定可查，AI 產生附來源的草稿,llamacpp-clef
+35,TK-1018,product,travel_rule,auto,0.9590,medium(0.16),low(0.75),auto_ok,分類信心 0.96；證照、簽證與天候通則有公開規定可查，AI 產生附來源的草稿,llamacpp-clef
+36,TK-1020,order_inquiry,order_status,auto,0.8153,medium(0.48),low(0.93),auto_ok,分類信心 0.82；只需唯讀查詢訂單狀態，AI 查詢後產生草稿,llamacpp-clef
+37,TK-1024,complaint,service_complaint,auto,0.7258,low(0.46),low(0.20),auto_ok,分類信心 0.73；抱怨但未要求補償，AI 草擬致歉與說明，客服確認語氣後送出,llamacpp-clef
+38,TK-1025,product,product_info,auto,0.6855,low(0.88),low(0.89),auto_ok,分類信心 0.69；一般產品資訊，知識庫查得到答案，AI 產生附來源的草稿,llamacpp-clef
+39,TK-1026,other,business,auto,0.7704,low(0.89),low(0.92),auto_ok,分類信心 0.77；非客服的業務往來，自動轉交對應部門,llamacpp-clef
+40,TK-1027,order_inquiry,member_points,auto,0.8368,low(0.83),low(0.45),auto_ok,分類信心 0.84；點數餘額與折抵規則可唯讀查詢，AI 查詢後產生草稿,llamacpp-clef
+41,TK-1034,other,business,auto,0.8680,low(0.92),low(0.94),auto_ok,分類信心 0.87；非客服的業務往來，自動轉交對應部門,llamacpp-clef
+42,TK-1035,order_inquiry,order_status,auto,0.8742,medium(0.30),low(0.92),auto_ok,分類信心 0.87；只需唯讀查詢訂單狀態，AI 查詢後產生草稿,llamacpp-clef
+43,TK-1038,order_inquiry,refund_status,auto,0.9687,low(0.71),low(0.85),auto_ok,分類信心 0.97；只需唯讀查詢退款進度，AI 查詢後產生草稿,llamacpp-clef
+44,TK-1040,product,travel_rule,auto,0.9360,medium(0.33),low(0.87),auto_ok,分類信心 0.94；證照、簽證與天候通則有公開規定可查，AI 產生附來源的草稿,llamacpp-clef
+45,TK-1041,other,irrelevant,auto,0.6476,low(0.96),low(0.87),auto_ok,分類信心 0.65；廣告、測試單或自動回覆，客服不需處理，直接歸檔,llamacpp-clef
+46,TK-1046,order_inquiry,document,auto,0.7388,low(0.85),low(0.93),auto_ok,分類信心 0.74；補寄憑證或開立收據屬標準作業，AI 產生草稿並附上文件,llamacpp-clef
+47,TK-1047,other,business,auto,0.9100,medium(0.56),low(0.95),auto_ok,分類信心 0.91；非客服的業務往來，自動轉交對應部門,llamacpp-clef
+48,TK-1048,product,cancel_policy,auto,0.9569,low(0.83),low(0.79),auto_ok,分類信心 0.96；退改手續費依定型化契約，條文固定，AI 產生附條文的草稿,llamacpp-clef
