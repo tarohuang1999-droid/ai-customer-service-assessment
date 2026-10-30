@@ -74,6 +74,7 @@ tr.mismatch td { background: var(--diff); }
 .gold { font-size: 12px; color: var(--ink-2); }
 .gold b { color: var(--critical); font-weight: 600; }
 .ok { color: var(--good-ink); font-size: 12px; font-weight: 600; }
+.alert { background: var(--diff); border: 1px solid var(--critical); color: var(--critical); border-radius: 12px; padding: 12px 16px; margin-bottom: 18px; font-weight: 600; }
 #tip { position: fixed; pointer-events: none; background: var(--ink); color: var(--surface); font-size: 12px; padding: 6px 9px; border-radius: 6px; opacity: 0; transition: opacity .1s; z-index: 10; }
 </style>
 </head>
@@ -87,9 +88,10 @@ tr.mismatch td { background: var(--diff); }
     <nav><a href="#summary">執行摘要</a><a href="#issues">資料發現</a><a href="#eval">評估</a><a href="#tickets">逐筆檢視</a></nav>
   </header>
 
+  %%ALERT%%
   <section id="summary">
     <h2>執行摘要</h2>
-    <p class="sub">route = auto 代表產出草稿或模板，仍由客服確認後送出。</p>
+    <p class="sub">route = auto 代表產出草稿或模板、由客服確認後送出，或是非客服信件自動轉交、歸檔。</p>
     <div class="tiles">%%TILES%%</div>
     <div class="split">
       <div class="seg" role="img" aria-label="route 比例">
@@ -114,7 +116,7 @@ tr.mismatch td { background: var(--diff); }
     <h2>評估（對照 expected_labels.csv）</h2>
     <p class="sub">False Auto 是上線前的紅線；False Human 只增加客服工作量，屬保守方向的錯誤。</p>
     <div class="tiles">%%EVAL_TILES%%</div>
-    <h3>分類信心分箱：檢驗 0.70 門檻</h3>
+    <h3>分類信心分箱：檢驗信心是否可靠</h3>
     %%BINS%%
     %%EVAL_NOTE%%
   </section>
@@ -157,7 +159,7 @@ function render() {
     <td class="num">${d.rank}</td>
     <td class="num">${esc(d.id)}<div class="muted">${esc(d.created)}<br>${esc(d.channel)}</div></td>
     <td><div class="subj">${esc(d.subject)}</div><div class="body">${esc(d.body)}</div></td>
-    <td class="cat">${esc(d.cat)}<br>${esc(d.sub)}<div class="muted">信心 ${d.conf.toFixed(2)}</div></td>
+    <td class="cat">${esc(d.cat)}<br>${esc(d.sub)}<div class="muted">信心 ${d.conf.toFixed(2)} · 風險 ${d.risk.toFixed(2)}</div></td>
     <td>${badge("r-" + d.route, d.route)}</td>
     <td class="muted">${d.urg} / ${d.imp}</td>
     <td>${goldCell(d)}</td>

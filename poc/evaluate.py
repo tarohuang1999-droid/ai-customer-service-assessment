@@ -26,15 +26,22 @@ def compute_eval_metrics(decisions: list[TriageDecision], gold: dict[str, dict[s
     rows = [(d, gold[d.ticket_id]) for d in decisions if d.ticket_id in gold]
     n = len(rows) or 1
     acc = {f: round(sum(getattr(d, f) == g[f] for d, g in rows) / n * 100, 1) for f in FIELDS}
+    unclear = [(d, g) for d, g in rows if d.category == "other" and d.sub_category == "unclear"]
+    judged = [(d, g) for d, g in rows if (d, g) not in unclear]
+    judged_ok = sum(d.sub_category == g["sub_category"] and d.category == g["category"] for d, g in judged)
     bins = {}
-    for label, cond in (("≥ 0.70", lambda c: c >= 0.70), ("< 0.70", lambda c: c < 0.70)):
-        sel = [(d, g) for d, g in rows if cond(d.confidence)]
+    for label, cond in (("≥ 0.70", lambda c: c >= 0.70), ("0.50 – 0.70", lambda c: 0.50 <= c < 0.70),
+                        ("< 0.50（歸 other/unclear）", lambda c: c < 0.50)):
+        sel = [(d, g) for d, g in rows if cond(d.confidence) and not d.reason.startswith("模型異常")]
         ok = sum(d.sub_category == g["sub_category"] for d, g in sel)
         bins[label] = {"n": len(sel), "acc": round(ok / len(sel) * 100, 1) if sel else None}
     return {
         "total": len(rows), "cat_acc": acc["category"], "sub_acc": acc["sub_category"],
         "route_acc": acc["route"],
         "false_auto": sum(d.route == "auto" and g["route"] == "human" for d, g in rows),
+        "false_auto_ids": [d.ticket_id for d, g in rows if d.route == "auto" and g["route"] == "human"],
+        "unclear_n": len(unclear),
+        "judged_acc": round(judged_ok / len(judged) * 100, 1) if judged else 0.0,
         "false_human": sum(d.route == "human" and g["route"] == "auto" for d, g in rows),
         "conf_bins": bins,
     }
@@ -113,6 +120,8 @@ def write_review_html(out_path: Path, tickets: list[Ticket], decisions: list[Tri
             _tile("主類別準確率", f"{metrics['cat_acc']}%"),
             _tile("細項準確率", f"{metrics['sub_acc']}%"),
             _tile("route 準確率", f"{metrics['route_acc']}%"),
+            _tile("判斷不了（other/unclear）", metrics["unclear_n"], "分類信心不足，交給人判斷"),
+            _tile("有判斷時的細項準確率", f"{metrics['judged_acc']}%", "排除 other/unclear"),
             _tile("False Auto", f"{'✓' if fa == 0 else '✕'} {fa}", "應 human 卻判 auto，必須為 0",
                   "good" if fa == 0 else "critical"),
             _tile("False Human", metrics["false_human"], "應 auto 卻判 human（較保守）"),
@@ -129,7 +138,7 @@ def write_review_html(out_path: Path, tickets: list[Ticket], decisions: list[Tri
         records.append({
             "id": d.ticket_id, "created": t.created_at, "channel": t.channel, "subject": t.subject, "body": t.body,
             "rank": d.queue_rank, "cat": d.category, "sub": d.sub_category, "route": d.route,
-            "conf": round(d.confidence, 2), "urg": d.urgency, "imp": d.impact, "reason": d.reason,
+            "conf": round(d.confidence, 2), "risk": round(d.risk, 2), "urg": d.urgency, "imp": d.impact, "reason": d.reason,
             "gold": {f: g[f] for f in FIELDS} if g else None, "diff": diff,
         })
 
@@ -148,6 +157,8 @@ def write_review_html(out_path: Path, tickets: list[Ticket], decisions: list[Tri
         "%%IMP_BARS%%": _bars([(lv, imp[lv]) for lv in ("high", "medium", "low")], n),
         "%%ISSUES%%": _table(["發現", "件數", "處置"], [list(r) for r in find_data_issues(tickets)]),
         "%%EVAL_TILES%%": eval_tiles,
+        "%%ALERT%%": (f'<div class="alert">✕ False Auto {metrics["false_auto"]} 筆：{"、".join(metrics["false_auto_ids"])}。'
+                      "應由人處理的工單被判為 auto，上線前必須為 0。</div>") if metrics and metrics["false_auto"] else "",
         "%%BINS%%": bins_html,
         "%%EVAL_NOTE%%": eval_note,
         "%%DATA%%": json.dumps(records, ensure_ascii=False).replace("</", "<\\/"),
