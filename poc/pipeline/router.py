@@ -24,6 +24,7 @@ class TriageDecision:
     urgency_conf: float
     impact: str
     impact_conf: float
+    reason_code: str
     reason: str
     model: str
     queue_rank: int = 0
@@ -38,37 +39,38 @@ def triage_one(ticket: Ticket, model: DecisionModel, labels: dict[str, Any], rou
     model_input = build_model_input(ticket, int(routing.get("max_body_chars", 300)))
     r = model.classify(model_input, labels)
 
-    def done(category: str, sub_category: str, route: str, reason: str) -> TriageDecision:
+    key = f"{r.category}/{r.sub_category}"
+    texts = routing.get("reasons", {})
+
+    def done(category: str, sub_category: str, route: str, code: str, detail: str = "") -> TriageDecision:
+        """reason_code 對應 routing.toml [reasons] 的說明；reason = 分類信心＋說明（＋細節）。"""
+        text = texts.get(code, code).format(key=key, urgency=r.urgent_level, impact=r.impact_level)
+        reason = f"分類信心 {r.confidence:.2f}；{text}" + (f"：{detail}" if detail else "")
         return TriageDecision(
             ticket_id=ticket.ticket_id, created_at=ticket.created_at,
             category=category, sub_category=sub_category, route=route, confidence=r.confidence,
             urgency=r.urgent_level, urgency_conf=r.urgent_conf, impact=r.impact_level, impact_conf=r.impact_conf,
-            reason=reason, model=r.model_name, model_input=model_input, model_traces=r.model_traces,
-            total_ms=round((time.perf_counter() - t0) * 1000, 1),
+            reason_code=code, reason=reason, model=r.model_name, model_input=model_input,
+            model_traces=r.model_traces, total_ms=round((time.perf_counter() - t0) * 1000, 1),
         )
 
     # 模型異常：fail-closed，一律轉人工；錯誤細節由 triage.py 寫入 log
     if r.error:
-        return done(*UNCLEAR, "human", f"模型異常轉人工：{r.error}")
+        return done(*UNCLEAR, "human", "model_error", r.error)
 
     # 1. 分類信心不足：系統判斷不了，歸 other/unclear
-    threshold = float(routing.get("classification_threshold", 0.5))
-    if r.confidence < threshold:
-        return done(*UNCLEAR, "human",
-                    f"分類信心 {r.confidence:.2f} < {threshold:.2f}，歸為 other/unclear（模型原判 {r.category}/{r.sub_category}）")
+    if r.confidence < float(routing.get("classification_threshold", 0.5)):
+        return done(*UNCLEAR, "human", "low_confidence")
 
     # 2. 條件規則：細項在 auto 白名單內，且急迫度、影響程度都在允許清單內 -> auto；其餘一律 human
-    key = f"{r.category}/{r.sub_category}"
     cond = routing["auto"].get(key)
     if cond is None:
-        route, why = "human", f"{key} 不在 auto 白名單"
-    elif r.urgent_level not in cond["urgency"]:
-        route, why = "human", f"急迫度 {r.urgent_level} 不在 auto 條件"
-    elif r.impact_level not in cond["impact"]:
-        route, why = "human", f"影響程度 {r.impact_level} 不在 auto 條件"
-    else:
-        route, why = "auto", "符合 auto 條件"
-    return done(r.category, r.sub_category, route, f"分類信心 {r.confidence:.2f}；{why}")
+        return done(r.category, r.sub_category, "human", "not_in_whitelist")
+    if r.urgent_level not in cond["urgency"]:
+        return done(r.category, r.sub_category, "human", "urgency_high")
+    if r.impact_level not in cond["impact"]:
+        return done(r.category, r.sub_category, "human", "impact_high")
+    return done(r.category, r.sub_category, "auto", "auto_ok")
 
 
 def assign_queue_rank(decisions: list[TriageDecision], level_conf_threshold: float = 0.70) -> list[TriageDecision]:
@@ -83,7 +85,7 @@ def assign_queue_rank(decisions: list[TriageDecision], level_conf_threshold: flo
         except ValueError:
             return datetime.max
 
-    ordered = sorted(decisions, key=lambda d: (not d.reason.startswith("模型異常"), d.route != "human",
+    ordered = sorted(decisions, key=lambda d: (d.reason_code != "model_error", d.route != "human",
                                                -level(d.urgency, d.urgency_conf),
                                                -level(d.impact, d.impact_conf), created(d)))
     for i, d in enumerate(ordered, 1):

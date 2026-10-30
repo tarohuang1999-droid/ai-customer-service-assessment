@@ -20,3 +20,14 @@ max_body_chars = 1000             # 送入模型的內文長度上限（保留�
 "other/business"              = { urgency = ["low", "medium"], impact = ["low", "medium"] }
 # 廣告、測試單、自動回覆：客服不處理，不論程度一律歸檔
 "other/irrelevant"            = { urgency = ["low", "medium", "high"], impact = ["low", "medium", "high"] }
+
+# 判斷原因：router 依判斷結果帶入對應的 reason_code 與說明，輸出到 triage_result.csv 與 log。
+# 說明可直接修改，不需要改程式；{key}、{urgency}、{impact} 會代入實際值。
+[reasons]
+auto_ok          = "符合 auto 條件"
+not_in_whitelist = "{key} 需要人處理（不在 auto 白名單）"
+urgency_high     = "急迫度 {urgency}，需要人處理"
+impact_high      = "影響程度 {impact}，需要人處理"
+low_confidence   = "低於門檻，歸為 other/unclear（模型原判 {key}）"
+model_error      = "模型異常轉人工"
+

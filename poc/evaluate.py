@@ -32,7 +32,7 @@ def compute_eval_metrics(decisions: list[TriageDecision], gold: dict[str, dict[s
     bins = {}
     for label, cond in (("≥ 0.70", lambda c: c >= 0.70), ("0.50 – 0.70", lambda c: 0.50 <= c < 0.70),
                         ("< 0.50（歸 other/unclear）", lambda c: c < 0.50)):
-        sel = [(d, g) for d, g in rows if cond(d.confidence) and not d.reason.startswith("模型異常")]
+        sel = [(d, g) for d, g in rows if cond(d.confidence) and d.reason_code != "model_error"]
         ok = sum(d.sub_category == g["sub_category"] for d, g in sel)
         bins[label] = {"n": len(sel), "acc": round(ok / len(sel) * 100, 1) if sel else None}
     return {

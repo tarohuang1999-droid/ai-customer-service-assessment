@@ -26,10 +26,10 @@ def write_triage_csv(path: Path, decisions: list[TriageDecision]) -> None:
     with path.open("w", encoding="utf-8", newline="") as f:
         w = csv.writer(f)
         w.writerow(["queue_rank", "ticket_id", "category", "sub_category", "route", "confidence",
-                    "urgency", "impact", "reason", "model"])
+                    "urgency", "impact", "reason_code", "reason", "model"])
         for d in decisions:
             w.writerow([d.queue_rank, d.ticket_id, d.category, d.sub_category, d.route, f"{d.confidence:.4f}",
-                        f"{d.urgency}({d.urgency_conf:.2f})", f"{d.impact}({d.impact_conf:.2f})", d.reason, d.model])
+                        f"{d.urgency}({d.urgency_conf:.2f})", f"{d.impact}({d.impact_conf:.2f})", d.reason_code, d.reason, d.model])
 
 
 def run(input_csv: Path, output_dir: Path, config_dir: Path, model_name: str, endpoint: str | None,
@@ -53,7 +53,7 @@ def run(input_csv: Path, output_dir: Path, config_dir: Path, model_name: str, en
         for i, t in enumerate(tickets, 1):
             d = triage_one(t, model, labels, routing)
             decisions.append(d)
-            if d.reason.startswith("模型異常"):
+            if d.reason_code == "model_error":
                 log(f"[ERROR] {t.ticket_id} {d.reason}")
             log(f"[{i:02d}/{len(tickets)}] {t.ticket_id} {d.total_ms:.0f}ms -> {d.category}/{d.sub_category} "
                 f"route={d.route} urgency={d.urgency} impact={d.impact} | {d.reason}")
@@ -85,8 +85,8 @@ def main() -> None:
     ap.add_argument("--input", default=str(base / "data" / "sample_tickets.csv"))
     ap.add_argument("--output-dir", default=str(base / "output"), help="每次執行建立 result-<時間> 子資料夾")
     ap.add_argument("--config-dir", default=str(base / "config"))
-    ap.add_argument("--model", default="mock", choices=["llamacpp", "clef", "jev", "mock"],
-                    help="llamacpp/clef：地端決策模型；jev：遠端 API（僅限虛構資料）；mock：離線基準")
+    ap.add_argument("--model", default="llamacpp", choices=["llamacpp", "clef", "jev"],
+                    help="llamacpp/clef：地端決策模型（預設）；jev：遠端 API（僅限虛構資料）")
     ap.add_argument("--endpoint", default=None, help="覆寫 /v1/systemone 端點")
     ap.add_argument("--api-key", default=None, help="Jev API token")
     ap.add_argument("--eval", default=str(base / "data" / "expected_labels.csv"), help="標準標註 CSV")
