@@ -13,15 +13,15 @@ from typing import Any
 from pipeline.preprocess import Ticket
 from pipeline.router import TriageDecision
 
-PRIORITIES = ["P4", "P3", "P2", "P1"]
-CLEANING_LABELS = {
-    "fullwidth": "全形英數字（已轉半形）",
-    "html_tag": "HTML 標籤（如 <br>，已清除）",
-    "html_entity": "HTML entity（已解碼）",
-    "signature": "手機或郵件簽名檔（已移除）",
-    "quoted_line": "引用回覆行（已移除）",
-    "quoted_original": "原始郵件引用（已移除）",
+FIELDS = ("category", "sub_category", "route", "priority")
+CLEANING = {
+    "fullwidth": ("全形英數字", "NFKC 轉半形"),
+    "html_tag": ("HTML 標籤（如 <br>）", "清除標籤，<br> 轉換行"),
+    "html_entity": ("HTML entity", "解碼"),
+    "signature": ("手機簽名檔", "移除"),
+    "indent": ("行首縮排", "移除"),
 }
+_PII_RE = re.compile(r"\b[A-Z][12]\d{8}\b|\b09\d{8}\b|\b\d{3}-\d{10,14}\b")
 
 
 def load_expected_labels(path: Path) -> dict[str, dict[str, str]]:
@@ -32,165 +32,135 @@ def load_expected_labels(path: Path) -> dict[str, dict[str, str]]:
 def compute_eval_metrics(decisions: list[TriageDecision], gold: dict[str, dict[str, str]]) -> dict[str, Any]:
     rows = [(d, gold[d.ticket_id]) for d in decisions if d.ticket_id in gold]
     n = len(rows) or 1
-
-    def acc(field: str) -> float:
-        return round(sum(getattr(d, field) == g[field] for d, g in rows) / n * 100, 1)
-
-    # Confidence bins only for tickets the model classified (rule-archived tickets excluded).
-    bins: dict[str, list[int]] = {"≥ 0.70": [0, 0], "< 0.70": [0, 0]}
-    for d, g in rows:
-        if d.model == "rule":
-            continue
-        key = "≥ 0.70" if d.confidence >= 0.70 else "< 0.70"
-        bins[key][0] += 1
-        bins[key][1] += d.sub_category == g["sub_category"]
-
+    acc = {f: round(sum(getattr(d, f) == g[f] for d, g in rows) / n * 100, 1) for f in FIELDS}
+    bins = {}
+    for label, cond in (("≥ 0.70", lambda c: c >= 0.70), ("< 0.70", lambda c: c < 0.70)):
+        sel = [(d, g) for d, g in rows if cond(d.confidence)]
+        ok = sum(d.sub_category == g["sub_category"] for d, g in sel)
+        bins[label] = {"n": len(sel), "acc": round(ok / len(sel) * 100, 1) if sel else None}
     return {
-        "total": len(rows),
-        "cat_acc": acc("category"),
-        "sub_acc": acc("sub_category"),
-        "route_acc": acc("route"),
-        "prio_acc": acc("priority"),
+        "total": len(rows), "cat_acc": acc["category"], "sub_acc": acc["sub_category"],
+        "route_acc": acc["route"], "prio_acc": acc["priority"],
         "false_auto": sum(d.route == "auto" and g["route"] == "human" for d, g in rows),
         "false_human": sum(d.route == "human" and g["route"] == "auto" for d, g in rows),
-        "conf_bins": {k: {"n": v[0], "acc": round(v[1] / v[0] * 100, 1) if v[0] else None} for k, v in bins.items()},
+        "conf_bins": bins,
     }
 
 
-def find_data_issues(tickets: list[Ticket], decisions: list[TriageDecision]) -> list[tuple[str, int, str]]:
-    """Return (issue, count, handling) rows for the data-quality section."""
-    issues: list[tuple[str, int, str]] = []
+def find_data_issues(tickets: list[Ticket]) -> list[tuple[str, int, str]]:
+    """資料發現：只做觀察與統計，不影響分流。"""
+    out: list[tuple[str, int, str]] = []
     extra = sum(1 for t in tickets if t.extra_empty_cols)
     if extra:
-        issues.append(("CSV 每列尾端多出空白欄位", extra, "只讀取前 6 個欄位"))
-    flags = Counter(f for t in tickets for f in t.cleaning_flags)
-    for key, label in CLEANING_LABELS.items():
-        if flags[key]:
-            issues.append((label, flags[key], "前處理正規化"))
-    kinds = Counter(d.reason.split("：", 1)[1] for d in decisions if d.model == "rule")
-    for kind, cnt in kinds.items():
-        issues.append((f"非客服信件：{kind}", cnt, "規則歸檔為 other/irrelevant，不呼叫模型"))
-    repeat = sum(1 for t in tickets if t.is_repeat_customer)
-    if repeat:
-        issues.append(("同一寄件人再次來信", repeat, "標記重複催單，轉人工並調升優先級；正式環境改用客戶 ID"))
-    pii = sum(1 for d in decisions if "has_inline_pii" in d.signal_tags)
+        out.append(("試算表匯出後每列尾端多出空白欄位", extra, "只讀取前 6 個欄位"))
+    steps = Counter(s for t in tickets for s in t.cleaning)
+    for key, (label, handling) in CLEANING.items():
+        if steps[key]:
+            out.append((label, steps[key], handling))
+    names = Counter(t.customer_name for t in tickets)
+    dup = sum(c for c in names.values() if c > 1)
+    if dup:
+        out.append(("同一寄件人名稱出現多次", dup, "只記錄；正式環境由工單系統以客戶 ID 判斷未結案件"))
+    pii = sum(1 for t in tickets if _PII_RE.search(t.body))
     if pii:
-        issues.append(("內文夾帶個資（證號、手機、帳號）", pii, "只標記，交由外部個資遮罩系統處理"))
+        out.append(("內文夾帶證號、手機或銀行帳號", pii, "地端模型不出內網，本階段不遮罩；log 不存全文"))
     english = sum(1 for t in tickets if not re.search(r"[一-鿿]", t.body))
     if english:
-        issues.append(("英文信件", english, "直接送模型分類，不另做翻譯"))
+        out.append(("英文信件", english, "直接交給模型判斷"))
     short = sum(1 for t in tickets if len(t.body) < 10)
     if short:
-        issues.append(("內文少於 10 字", short, "由模型判斷，看不出訴求時歸 unclear/insufficient_info"))
-    return issues
+        out.append(("內文少於 10 字", short, "交給模型判斷，看不出訴求時歸 unclear"))
+    return out
+
+
+def _bars(counts: list[tuple[str, int]], total: int) -> str:
+    peak = max((c for _, c in counts), default=1) or 1
+    rows = []
+    for label, c in counts:
+        tip = f"{label}：{c} 件（{c / total * 100:.1f}%）"
+        rows.append(
+            f'<div class="bar-row" data-tip="{html.escape(tip)}"><span class="bar-label">{html.escape(label)}</span>'
+            f'<span class="bar-track"><span class="bar" style="width:{c / peak * 100:.1f}%"></span>'
+            f'<span class="bar-val">{c}</span></span></div>'
+        )
+    return "".join(rows)
+
+
+def _tile(label: str, value: Any, note: str = "", cls: str = "") -> str:
+    return (f'<div class="tile {cls}"><div class="tile-label">{html.escape(label)}</div>'
+            f'<div class="tile-value">{value}</div><div class="tile-note">{note}</div></div>')
 
 
 def _table(headers: list[str], rows: list[list[Any]]) -> str:
     head = "".join(f"<th>{html.escape(str(h))}</th>" for h in headers)
     body = "".join("<tr>" + "".join(f"<td>{html.escape(str(c))}</td>" for c in r) + "</tr>" for r in rows)
-    return f"<table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>"
+    return f'<table class="plain"><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>'
 
 
 def write_review_html(out_path: Path, tickets: list[Ticket], decisions: list[TriageDecision],
                       gold: dict[str, dict[str, str]], metrics: dict[str, Any] | None, model_name: str) -> None:
-    n = len(decisions)
+    n = len(decisions) or 1
     by_id = {t.ticket_id: t for t in tickets}
-    route_cnt = Counter(d.route for d in decisions)
-    cat_cnt = Counter(d.category for d in decisions)
-    sub_cnt = Counter((d.category, d.sub_category) for d in decisions)
-    prio_cnt = Counter(d.priority for d in decisions)
+    routes = Counter(d.route for d in decisions)
+    cats = Counter(d.category for d in decisions).most_common()
+    subs = Counter(f"{d.category} / {d.sub_category}" for d in decisions).most_common()
+    prios = Counter(d.priority for d in decisions)
+    human_pct = routes["human"] / n * 100
 
-    summary = [
-        ["工單數", n],
-        ["需人工（route = human）", f"{route_cnt['human']}（{route_cnt['human'] / n * 100:.1f}%）"],
-        ["可草擬（route = auto）", f"{route_cnt['auto']}（{route_cnt['auto'] / n * 100:.1f}%）"],
-        ["平均處理時間", f"{sum(d.total_ms for d in decisions) / n:.0f} ms／件"],
+    tiles = [
+        _tile("工單數", len(decisions)),
+        _tile("需人工（human）", f"{human_pct:.0f}%", f"{routes['human']} 件"),
+        _tile("可草擬（auto）", f"{100 - human_pct:.0f}%", f"{routes['auto']} 件"),
+        _tile("平均處理時間", f"{sum(d.total_ms for d in decisions) / n / 1000:.1f}s", "每件，含 3 次模型呼叫"),
     ]
-    cat_rows = [[c, s, cnt, f"{cnt / n * 100:.1f}%"] for (c, s), cnt in sorted(sub_cnt.items())]
-    cat_total_rows = [[c, cnt, f"{cnt / n * 100:.1f}%"] for c, cnt in cat_cnt.most_common()]
-    prio_rows = [[p, prio_cnt[p]] for p in PRIORITIES]
-    issue_rows = [list(r) for r in find_data_issues(tickets, decisions)]
-
-    eval_html = "<p>未提供標準標註，略過評估。</p>"
+    eval_tiles, bins_html, eval_note = "", "", '<p class="muted">未提供標準標註，略過評估。</p>'
     if metrics:
-        eval_html = _table(["指標", "結果"], [
-            ["主類別準確率", f"{metrics['cat_acc']}%"],
-            ["細項準確率", f"{metrics['sub_acc']}%"],
-            ["route 準確率", f"{metrics['route_acc']}%"],
-            ["priority 準確率", f"{metrics['prio_acc']}%"],
-            ["False Auto（應 human 卻判 auto，必須為 0）", metrics["false_auto"]],
-            ["False Human（應 auto 卻判 human）", metrics["false_human"]],
-        ]) + "<h3>分類信心分箱（檢驗 0.70 門檻）</h3>" + _table(
-            ["分類信心", "件數", "細項準確率"],
-            [[k, v["n"], "-" if v["acc"] is None else f"{v['acc']}%"] for k, v in metrics["conf_bins"].items()],
-        ) + "<p class='note'>48 筆樣本同時是設計類別時參考的資料，以上數字只代表開發集表現；正式驗收需使用未參與設計的歷史工單。</p>"
+        fa = metrics["false_auto"]
+        eval_tiles = "".join([
+            _tile("主類別準確率", f"{metrics['cat_acc']}%"),
+            _tile("細項準確率", f"{metrics['sub_acc']}%"),
+            _tile("route 準確率", f"{metrics['route_acc']}%"),
+            _tile("priority 準確率", f"{metrics['prio_acc']}%"),
+            _tile("False Auto", f"{'✓' if fa == 0 else '✕'} {fa}", "應 human 卻判 auto，必須為 0",
+                  "good" if fa == 0 else "critical"),
+            _tile("False Human", metrics["false_human"], "應 auto 卻判 human（較保守）"),
+        ])
+        bins_html = _table(["分類信心", "件數", "細項準確率"],
+                           [[k, v["n"], "–" if v["acc"] is None else f"{v['acc']}%"] for k, v in metrics["conf_bins"].items()])
+        eval_note = ('<p class="muted">48 筆樣本也是設計類別時參考的資料，以上數字只代表開發集；'
+                     '正式驗收需使用未參與設計的歷史工單。</p>')
 
     records = []
     for d in decisions:
-        t, g = by_id[d.ticket_id], gold.get(d.ticket_id, {})
-        ok = None if not g else all(getattr(d, f) == g[f] for f in ("category", "sub_category", "route", "priority"))
+        t, g = by_id[d.ticket_id], gold.get(d.ticket_id)
+        diff = [f for f in FIELDS if g and getattr(d, f) != g[f]]
         records.append({
-            "id": d.ticket_id, "subject": t.subject, "body": t.body,
-            "pred": f"{d.category}/{d.sub_category}", "route": d.route, "priority": d.priority,
-            "conf": round(d.confidence, 2), "urgency": d.urgent_level, "impact": d.impact_level,
-            "gold": f"{g['category']}/{g['sub_category']} · {g['route']} · {g['priority']}" if g else "",
-            "ok": ok, "reason": d.reason,
+            "id": d.ticket_id, "created": t.created_at, "channel": t.channel, "subject": t.subject, "body": t.body,
+            "cat": d.category, "sub": d.sub_category, "route": d.route, "prio": d.priority,
+            "conf": round(d.confidence, 2), "urg": d.urgency, "imp": d.impact, "reason": d.reason,
+            "gold": {f: g[f] for f in FIELDS} if g else None, "diff": diff,
         })
 
-    page = TEMPLATE.format(
-        generated=datetime.now().strftime("%Y-%m-%d %H:%M"), model=html.escape(model_name),
-        summary=_table(["項目", "數值"], summary),
-        categories=_table(["主類別", "件數", "比例"], cat_total_rows),
-        subcategories=_table(["主類別", "細項", "件數", "比例"], cat_rows),
-        priorities=_table(["優先級（P4 最高）", "件數"], prio_rows),
-        issues=_table(["發現", "件數", "處置"], issue_rows),
-        evaluation=eval_html,
-        records=json.dumps(records, ensure_ascii=False).replace("</", "<\\/"),
-    )
+    page = TEMPLATE
+    for key, val in {
+        "%%GENERATED%%": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "%%MODEL%%": html.escape(model_name),
+        "%%TILES%%": "".join(tiles),
+        "%%HUMAN_PCT%%": f"{human_pct:.1f}",
+        "%%AUTO_PCT%%": f"{100 - human_pct:.1f}",
+        "%%HUMAN_N%%": str(routes["human"]),
+        "%%AUTO_N%%": str(routes["auto"]),
+        "%%CAT_BARS%%": _bars(cats, n),
+        "%%SUB_BARS%%": _bars(subs, n),
+        "%%PRIO_BARS%%": _bars([(f"{p}{'（最高）' if p == 'P4' else ''}", prios[p]) for p in ("P4", "P3", "P2", "P1")], n),
+        "%%ISSUES%%": _table(["發現", "件數", "處置"], [list(r) for r in find_data_issues(tickets)]),
+        "%%EVAL_TILES%%": eval_tiles,
+        "%%BINS%%": bins_html,
+        "%%EVAL_NOTE%%": eval_note,
+        "%%DATA%%": json.dumps(records, ensure_ascii=False).replace("</", "<\\/"),
+    }.items():
+        page = page.replace(key, val)
     out_path.write_text(page, encoding="utf-8")
 
 
-TEMPLATE = """<!DOCTYPE html>
-<html lang="zh-Hant"><head><meta charset="utf-8"><title>工單分流 Review</title>
-<style>
-body{{font-family:-apple-system,"PingFang TC","Noto Sans TC",sans-serif;margin:32px;color:#1f2328;max-width:1280px}}
-h1{{font-size:22px}} h2{{font-size:17px;margin-top:32px;border-bottom:1px solid #d0d7de;padding-bottom:4px}} h3{{font-size:14px}}
-table{{border-collapse:collapse;font-size:13px;margin:8px 0}} th,td{{border:1px solid #d0d7de;padding:5px 9px;text-align:left;vertical-align:top}}
-th{{background:#f6f8fa}} .grid{{display:flex;gap:28px;flex-wrap:wrap}} .note,.meta{{color:#656d76;font-size:12px}}
-.bad{{background:#fff1f0}} .human{{color:#cf222e;font-weight:600}} .auto{{color:#1a7f37;font-weight:600}}
-.controls{{display:flex;gap:8px;margin:8px 0}} input,select{{padding:4px 6px;font-size:13px}} .body{{color:#656d76;max-width:380px}}
-</style></head><body>
-<h1>工單分流 Review</h1>
-<p class="meta">產生時間 {generated} · 模型 {model}</p>
-<h2>1. 執行摘要</h2>
-<div class="grid"><div>{summary}</div><div>{categories}</div><div>{priorities}</div></div>
-<h3>細項分佈</h3>{subcategories}
-<h2>2. 資料發現與處置</h2>{issues}
-<h2>3. 評估（對照 expected_labels.csv）</h2>{evaluation}
-<h2>4. 逐筆檢視</h2>
-<div class="controls">
-<input id="q" placeholder="搜尋 ID、主旨、內文、類別">
-<select id="route"><option value="">全部 route</option><option>human</option><option>auto</option></select>
-<select id="match"><option value="">全部</option><option value="bad">只看不一致</option></select>
-</div>
-<table><thead><tr><th>ID</th><th>主旨 / 內文</th><th>預測</th><th>route</th><th>priority</th><th>急迫 / 影響</th><th>標準答案</th><th>reason</th></tr></thead>
-<tbody id="rows"></tbody></table>
-<script>
-const DATA = {records};
-const esc = s => String(s).replace(/[&<>"]/g, c => ({{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}})[c]);
-function render() {{
-  const q = document.getElementById("q").value.toLowerCase();
-  const r = document.getElementById("route").value, m = document.getElementById("match").value;
-  document.getElementById("rows").innerHTML = DATA.filter(d =>
-    (!q || [d.id, d.subject, d.body, d.pred].join(" ").toLowerCase().includes(q)) &&
-    (!r || d.route === r) && (!m || d.ok === false)
-  ).map(d => `<tr class="${{d.ok === false ? "bad" : ""}}"><td>${{esc(d.id)}}</td>
-    <td><b>${{esc(d.subject)}}</b><div class="body">${{esc(d.body)}}</div></td>
-    <td>${{esc(d.pred)}}<br><span class="meta">信心 ${{d.conf}}</span></td>
-    <td class="${{d.route}}">${{d.route}}</td><td>${{d.priority}}</td><td>${{d.urgency}} / ${{d.impact}}</td>
-    <td>${{esc(d.gold)}}</td><td>${{esc(d.reason)}}</td></tr>`).join("");
-}}
-["q", "route", "match"].forEach(id => document.getElementById(id).addEventListener("input", render));
-render();
-</script></body></html>
-"""
+TEMPLATE = (Path(__file__).with_name("review_template.html")).read_text(encoding="utf-8")

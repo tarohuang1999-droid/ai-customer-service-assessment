@@ -1,128 +1,92 @@
-# 決策模型的 3 題選擇題定義（定義來源：../taxonomy-and-priority-spec.md）
+# 決策模型的 3 題選擇題（定義來源：../category-priority-spec.md）
 # 描述只寫通用定義與邊界，不得寫入任何樣本內容。
-# route / priority 為細項預設值，由 router 查表使用。
+# route 與 priority 的對應表在 routing.toml。
 
 [classification]
 instructions = "根據客服工單的主旨與內文，選出客戶主要訴求所屬的『主類別/細項』。一封信有多個訴求時，選風險最高的訴求。"
 
 # product：不需訂單資料即可回答
 [classification.options."product/product_info"]
-route = "auto"
-priority = "P2"
-description = "產品資訊詢問：行程內容、費用包含項目、計價方式、加購項目的價格與期限、票券兌換與使用、艙房或座位規則。不含：要求客服代為修改已成立的訂單。"
+description = "已公開的產品資訊：行程內容、費用包含項目、計價方式、加購項目的價格、票券兌換與使用方式、艙房或座位的選擇規則。不含：要求客服代為修改已成立的訂單；需另外報價或個案確認的需求。"
 
 [classification.options."product/travel_rule"]
-route = "auto"
-priority = "P2"
 description = "旅遊規定詢問：證照效期、簽證與入境規定、天候或不可抗力時是否出團與退費通則。不含：已出發後正在發生的異常。"
 
 [classification.options."product/cancel_policy"]
-route = "auto"
-priority = "P2"
-description = "退改規定詢問：取消或改期的手續費比例、定型化契約級距。不含：客戶已決定並申請取消。"
+description = "退改規定詢問：取消或改期的手續費比例、定型化契約級距。不含：客戶已決定並申請取消；沒有說明情境、無法判斷意圖的極短詢問。"
 
 [classification.options."product/custom_request"]
-route = "human"
-priority = "P2"
-description = "客製需求：需另外評估或向供應商確認的安排，例如團體或企業包團報價、無障礙安排、特殊飲食。不含：標準規則即可回答的問題。"
+description = "客製需求：需另外報價或向供應商個案確認，例如旅客的團體或企業包團報價、無障礙設施、特殊餐食。不含：詢問既有選項或規則是否允許；廠商寄來的報價。"
 
 # order_inquiry：需唯讀查詢訂單或會員資料
 [classification.options."order_inquiry/order_status"]
-route = "auto"
-priority = "P2"
 description = "訂單狀態查詢：訂單是否成立、行前通知或行程表何時寄送。不含：要求修改訂單。"
 
 [classification.options."order_inquiry/refund_status"]
-route = "auto"
-priority = "P2"
 description = "退款進度查詢：已申請的退款處理到哪裡、多久入帳。不含：申請退款。"
 
 [classification.options."order_inquiry/document"]
-route = "auto"
-priority = "P2"
-description = "文件索取：補寄確認信或電子憑證、開立新收據。不含：已開立單據的更正或改開。"
+description = "文件索取：補寄確認信或電子憑證、開立新收據。不含：已開立單據的更正或改開；票券如何兌換使用。"
 
 [classification.options."order_inquiry/member_points"]
-route = "auto"
-priority = "P2"
 description = "會員點數查詢：點數餘額、折抵上限與到期規則。"
 
 # order_change：需在既有系統寫入
 [classification.options."order_change/booking_change"]
-route = "human"
-priority = "P2"
 description = "訂單變更申請：對已成立訂單要求改期、改人數、改接送地點、代為加購、取消、退費，或提供退款帳戶。不含：只詢問規定或價格。"
 
 [classification.options."order_change/data_correction"]
-route = "human"
-priority = "P2"
 description = "資料更正申請：更正旅客姓名或證件資料，或更正、改開已開立的發票。不含：開立新收據。"
 
 # system_issue：需調查
 [classification.options."system_issue/account_access"]
-route = "human"
-priority = "P2"
 description = "帳號存取問題：無法登入、帳號被鎖定、收不到驗證碼。"
 
 [classification.options."system_issue/checkout_error"]
-route = "human"
-priority = "P2"
 description = "結帳與扣款異常：付款失敗、重複扣款、扣款或結帳金額與標價不符。不含：退款進度查詢。"
 
 # trip_incident：已出發後的即時協助
 [classification.options."trip_incident/disruption"]
-route = "human"
-priority = "P4"
 description = "旅途異常：客戶已出發，正在發生需要即時協助的問題，例如住宿問題、人員未到、證件遺失、受傷、滯留。不含：出發前的天候詢問；事後要求賠償。"
 
 # complaint
 [classification.options."complaint/service_complaint"]
-route = "human"
-priority = "P2"
 description = "服務抱怨：對服務品質或聯絡管道表達不滿，沒有提出具體賠償或退費要求。"
 
 [classification.options."complaint/compensation_claim"]
-route = "human"
-priority = "P3"
 description = "求償申訴：要求賠償、退還費用、正式道歉，或揚言向外部單位申訴。"
 
 # other：非客服
 [classification.options."other/business"]
-route = "human"
-priority = "P1"
-description = "對外往來：需要轉交其他部門的信件，例如供應商、合作提案、媒體、求職。不含：客戶的團體旅遊詢價。"
+description = "寄件者不是旅客：供應商或合作廠商的報價與提案、媒體採訪、求職應徵，需要轉交其他部門。不含：旅客的團體旅遊詢價。"
 
 [classification.options."other/irrelevant"]
-route = "auto"
-priority = "P1"
 description = "無關信件：廣告、測試單、自動回覆。"
 
 # unclear
 [classification.options."unclear/insufficient_info"]
-route = "auto"
-priority = "P2"
-description = "資訊不足：看不出具體訴求，或缺少處理所需的訂單資訊，需要請客戶補充。"
+description = "資訊不足：內容太短或沒有說明對象，無法判斷要處理哪一筆訂單或哪件事，需要請客戶補充。"
 
 [urgency_level]
-instructions = "根據工單內容，判斷這件事需要多快處理。"
+instructions = "根據進件時間與工單內容，判斷這件事需要多快處理。語氣急迫或情緒激動本身不代表急迫。"
 
 [urgency_level.options.high]
-description = "72 小時內要出發或使用，或客戶正在旅途中，或當日必須處理。"
+description = "距進件時間 72 小時內要出發或使用，或客戶已在旅途中需要即時協助。"
 
 [urgency_level.options.medium]
-description = "兩週內要出發或使用，或有明確的截止期限，例如付款期限、報帳期限。"
+description = "距進件時間兩週內要出發或使用，或客戶提到短期期限，例如付款期限、報帳期限。"
 
 [urgency_level.options.low]
-description = "沒有近期時間壓力，例如一般詢問、事後反映、非客服信件。"
+description = "沒有近期時間壓力：一般詢問、出發日在兩週以後、事後反映、非客服信件。"
 
 [impact_level]
 instructions = "根據工單內容，判斷對客戶與公司的業務或財務影響程度。"
 
 [impact_level.options.high]
-description = "金額超過 30,000 元、重複扣款、要求賠償、揚言申訴、人身安全，或交易無法完成（例如有待付款訂單卻無法登入或付款）。"
+description = "金錢爭議或損失（重複扣款、求償、高額退費）、揚言向外部申訴或公開、人身安全。"
 
 [impact_level.options.medium]
-description = "需要修改訂單或調整費用，例如改期、取消、退費、資料更正。"
+description = "需要修改訂單或調整費用（改期、取消、退費、資料更正），或帳號與付款問題。"
 
 [impact_level.options.low]
 description = "資訊詢問或非客服信件，不涉及訂單或費用變動。"

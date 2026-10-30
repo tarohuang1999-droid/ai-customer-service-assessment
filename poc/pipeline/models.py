@@ -207,6 +207,7 @@ class JevAPIClient(_SystemOneHTTPBase):
 
 class MockDecisionModel:
     """Offline baseline: scores options with a generic keyword lexicon (no sample sentences).
+    Only used to run the pipeline without a model server; real routing relies on the decision model.
 
     It only proves the pipeline runs end-to-end without a model server; its accuracy
     is expected to be well below the decision model.
@@ -231,13 +232,13 @@ class MockDecisionModel:
         "complaint/service_complaint": ["打不通", "沒人接", "服務態度", "等很久"],
         "complaint/compensation_claim": ["賠償", "求償", "退還", "道歉", "消保官", "申訴", "損失"],
         "other/business": ["報價單", "合作", "業配", "採訪", "記者", "應徵", "履歷", "職缺", "包車"],
-        "other/irrelevant": ["廣告", "優惠活動", "訂閱"],
+        "other/irrelevant": ["廣告", "博弈", "優惠活動", "測試", "自動回覆"],
         "unclear/insufficient_info": [],
     }
     _URGENCY = {"high": ["今天", "明天", "明日", "今晚", "後天", "旅途中", "現在人在"], "medium": ["下週", "急", "期限", "截止", "報帳"]}
     _IMPACT = {
-        "high": ["賠償", "求償", "重複扣", "消保官", "媒體", "律師", "受傷", "待付款", "無法付款"],
-        "medium": ["改期", "取消", "退費", "更正", "加購", "改開", "重開"],
+        "high": ["賠償", "求償", "重複扣", "消保官", "媒體", "律師", "受傷"],
+        "medium": ["改期", "取消", "退費", "更正", "加購", "改開", "重開", "帳號", "付款"],
     }
 
     @staticmethod
@@ -254,7 +255,7 @@ class MockDecisionModel:
             if key in scores:
                 scores[key] += sum(1.0 for w in words if w in state_str)
         body_len = len(state_str.split("內文：", 1)[-1])
-        if body_len < 10:
+        if body_len < 8:
             scores["unclear/insufficient_info"] += 1.5
 
         total = sum(scores.values())

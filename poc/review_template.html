@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>工單分流 Review</title>
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
+  --grid: #e1e0d9; --axis: #c3c2b7; --ring: rgba(11,11,11,0.10);
+  --auto: #2a78d6; --human: #eb6834; --bar: #2a78d6; --wash: rgba(42,120,214,0.08);
+  --good: #0ca30c; --good-ink: #006300; --serious: #ec835a; --critical: #d03b3b; --warning: #fab219;
+  --diff: rgba(208,59,59,0.07);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10);
+    --auto: #3987e5; --human: #d95926; --bar: #3987e5; --wash: rgba(57,135,229,0.12);
+    --good-ink: #0ca30c; --diff: rgba(208,59,59,0.16);
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--ink);
+  font: 14px/1.55 system-ui, -apple-system, "PingFang TC", "Noto Sans TC", "Segoe UI", sans-serif; }
+.wrap { max-width: 1240px; margin: 0 auto; padding: 32px 24px 64px; }
+header { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; margin-bottom: 24px; }
+h1 { font-size: 24px; margin: 0; letter-spacing: .01em; }
+.meta { color: var(--ink-2); font-size: 13px; }
+nav a { color: var(--ink-2); text-decoration: none; margin-left: 14px; font-size: 13px; }
+nav a:hover { color: var(--ink); }
+section { background: var(--surface); border: 1px solid var(--ring); border-radius: 14px; padding: 22px 24px; margin-bottom: 18px; }
+h2 { font-size: 16px; margin: 0 0 4px; }
+.sub { color: var(--ink-2); font-size: 13px; margin: 0 0 16px; }
+h3 { font-size: 13px; color: var(--ink-2); font-weight: 600; margin: 18px 0 10px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+.tile { border: 1px solid var(--ring); border-radius: 12px; padding: 14px 16px; background: var(--surface); }
+.tile-label { color: var(--ink-2); font-size: 12px; }
+.tile-value { font-size: 26px; font-weight: 600; margin-top: 2px; }
+.tile-note { color: var(--muted); font-size: 12px; min-height: 18px; }
+.tile.good { box-shadow: inset 4px 0 0 var(--good); } .tile.good .tile-value { color: var(--good-ink); }
+.tile.critical { box-shadow: inset 4px 0 0 var(--critical); } .tile.critical .tile-value { color: var(--critical); }
+.split { margin-top: 18px; }
+.seg { display: flex; height: 22px; gap: 2px; border-radius: 4px; overflow: hidden; }
+.seg span { display: block; height: 100%; }
+.legend { display: flex; gap: 18px; margin-top: 8px; color: var(--ink-2); font-size: 13px; }
+.key { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+@media (max-width: 860px) { .grid2 { grid-template-columns: 1fr; } }
+.bar-row { display: grid; grid-template-columns: 210px 1fr; align-items: center; gap: 10px; padding: 3px 0; border-radius: 6px; }
+.bar-row:hover { background: var(--wash); }
+.bar-label { color: var(--ink-2); font-size: 13px; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar-track { display: flex; align-items: center; gap: 8px; border-left: 1px solid var(--axis); height: 22px; }
+.bar { height: 16px; background: var(--bar); border-radius: 0 4px 4px 0; min-width: 2px; }
+.bar-val { color: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; color: var(--ink-2); font-weight: 600; border-bottom: 1px solid var(--axis); padding: 8px 10px; position: sticky; top: 0; background: var(--surface); }
+td { border-bottom: 1px solid var(--grid); padding: 9px 10px; vertical-align: top; }
+table.plain { width: auto; min-width: 50%; }
+.num { font-variant-numeric: tabular-nums; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.controls input, .controls select { background: var(--surface); color: var(--ink); border: 1px solid var(--axis); border-radius: 8px; padding: 7px 10px; font: inherit; }
+.controls input { flex: 1; min-width: 220px; }
+.count { color: var(--muted); font-size: 12px; align-self: center; }
+.badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; border: 1px solid var(--ring); white-space: nowrap; }
+.badge .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; vertical-align: 1px; }
+.p4 .dot { background: var(--critical); } .p3 .dot { background: var(--serious); } .p2 .dot { background: var(--warning); } .p1 .dot { background: var(--muted); }
+.r-auto .dot { background: var(--auto); } .r-human .dot { background: var(--human); }
+.subj { font-weight: 600; } .body { color: var(--ink-2); max-width: 420px; margin-top: 2px; }
+.cat { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+.muted { color: var(--muted); font-size: 12px; }
+tr.mismatch td { background: var(--diff); }
+.gold { font-size: 12px; color: var(--ink-2); }
+.gold b { color: var(--critical); font-weight: 600; }
+.ok { color: var(--good-ink); font-size: 12px; font-weight: 600; }
+#tip { position: fixed; pointer-events: none; background: var(--ink); color: var(--surface); font-size: 12px; padding: 6px 9px; border-radius: 6px; opacity: 0; transition: opacity .1s; z-index: 10; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>工單分流 Review</h1>
+      <div class="meta">產生時間 %%GENERATED%% · 決策模型 %%MODEL%%</div>
+    </div>
+    <nav><a href="#summary">執行摘要</a><a href="#issues">資料發現</a><a href="#eval">評估</a><a href="#tickets">逐筆檢視</a></nav>
+  </header>
+
+  <section id="summary">
+    <h2>執行摘要</h2>
+    <p class="sub">route = auto 代表產出草稿或模板，仍由客服確認後送出。</p>
+    <div class="tiles">%%TILES%%</div>
+    <div class="split">
+      <div class="seg" role="img" aria-label="route 比例">
+        <span style="width:%%HUMAN_PCT%%%;background:var(--human)" data-tip="human：%%HUMAN_N%% 件（%%HUMAN_PCT%%%）"></span>
+        <span style="width:%%AUTO_PCT%%%;background:var(--auto)" data-tip="auto：%%AUTO_N%% 件（%%AUTO_PCT%%%）"></span>
+      </div>
+      <div class="legend"><span><i class="key" style="background:var(--human)"></i>human %%HUMAN_N%% 件</span><span><i class="key" style="background:var(--auto)"></i>auto %%AUTO_N%% 件</span></div>
+    </div>
+    <div class="grid2">
+      <div><h3>主類別分佈</h3>%%CAT_BARS%%<h3>優先級分佈（P4 最高）</h3>%%PRIO_BARS%%</div>
+      <div><h3>細項分佈</h3>%%SUB_BARS%%</div>
+    </div>
+  </section>
+
+  <section id="issues">
+    <h2>資料發現與處置</h2>
+    <p class="sub">前處理只做正規化與清理；以下觀察不影響分流判斷。</p>
+    %%ISSUES%%
+  </section>
+
+  <section id="eval">
+    <h2>評估（對照 expected_labels.csv）</h2>
+    <p class="sub">False Auto 是上線前的紅線；False Human 只增加客服工作量，屬保守方向的錯誤。</p>
+    <div class="tiles">%%EVAL_TILES%%</div>
+    <h3>分類信心分箱：檢驗 0.70 門檻</h3>
+    %%BINS%%
+    %%EVAL_NOTE%%
+  </section>
+
+  <section id="tickets">
+    <h2>逐筆檢視</h2>
+    <p class="sub">紅底為與標準答案不一致；標準答案中不一致的欄位以紅字標示。</p>
+    <div class="controls">
+      <input id="q" placeholder="搜尋 ID、主旨、內文、類別">
+      <select id="f-route"><option value="">全部 route</option><option>human</option><option>auto</option></select>
+      <select id="f-prio"><option value="">全部優先級</option><option>P4</option><option>P3</option><option>P2</option><option>P1</option></select>
+      <select id="f-match"><option value="">全部結果</option><option value="bad">只看不一致</option><option value="ok">只看一致</option></select>
+      <span class="count" id="count"></span>
+    </div>
+    <table>
+      <thead><tr><th>ID</th><th>主旨 / 內文</th><th>分類</th><th>route</th><th>優先級</th><th>急迫 / 影響</th><th>標準答案</th><th>reason</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </section>
+</div>
+<div id="tip"></div>
+<script>
+const DATA = %%DATA%%;
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"})[c]);
+const badge = (cls, text) => `<span class="badge ${cls}"><i class="dot"></i>${text}</span>`;
+function goldCell(d) {
+  if (!d.gold) return '<span class="muted">—</span>';
+  if (!d.diff.length) return '<span class="ok">✓ 一致</span>';
+  const g = d.gold, mark = (f, v) => d.diff.includes(f) ? `<b>${esc(v)}</b>` : esc(v);
+  return `<div class="gold">${mark("category", g.category)} / ${mark("sub_category", g.sub_category)}<br>${mark("route", g.route)} · ${mark("priority", g.priority)}</div>`;
+}
+function render() {
+  const q = $("q").value.toLowerCase(), r = $("f-route").value, p = $("f-prio").value, m = $("f-match").value;
+  const rows = DATA.filter(d =>
+    (!q || [d.id, d.subject, d.body, d.cat, d.sub].join(" ").toLowerCase().includes(q)) &&
+    (!r || d.route === r) && (!p || d.prio === p) &&
+    (!m || (m === "bad" ? d.diff.length > 0 : d.gold && d.diff.length === 0)));
+  $("count").textContent = `${rows.length} / ${DATA.length} 筆`;
+  $("rows").innerHTML = rows.map(d => `<tr class="${d.diff.length ? "mismatch" : ""}">
+    <td class="num">${esc(d.id)}<div class="muted">${esc(d.created)}<br>${esc(d.channel)}</div></td>
+    <td><div class="subj">${esc(d.subject)}</div><div class="body">${esc(d.body)}</div></td>
+    <td class="cat">${esc(d.cat)}<br>${esc(d.sub)}<div class="muted">信心 ${d.conf.toFixed(2)}</div></td>
+    <td>${badge("r-" + d.route, d.route)}</td>
+    <td>${badge(d.prio.toLowerCase(), d.prio)}</td>
+    <td class="muted">${d.urg} / ${d.imp}</td>
+    <td>${goldCell(d)}</td>
+    <td class="muted">${esc(d.reason)}</td></tr>`).join("");
+}
+["q", "f-route", "f-prio", "f-match"].forEach(id => $(id).addEventListener("input", render));
+render();
+const tip = $("tip");
+document.addEventListener("mousemove", e => {
+  const el = e.target.closest("[data-tip]");
+  if (!el) { tip.style.opacity = 0; return; }
+  tip.textContent = el.dataset.tip; tip.style.opacity = 1;
+  tip.style.left = Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8) + "px";
+  tip.style.top = (e.clientY + 14) + "px";
+});
+</script>
+</body>
+</html>
