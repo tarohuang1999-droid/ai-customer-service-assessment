@@ -33,9 +33,11 @@ def write_triage_csv(path: Path, decisions: list[TriageDecision]) -> None:
 
 
 def run(input_csv: Path, output_dir: Path, config_dir: Path, model_name: str, endpoint: str | None,
-        api_key: str | None, gold_csv: Path | None) -> Path:
+        api_key: str | None, gold_csv: Path | None, routing_mode: str | None = None) -> Path:
     labels = load_toml(config_dir / "labels.toml")
     routing = load_toml(config_dir / "routing.toml")
+    if routing_mode:
+        routing["mode"] = routing_mode
     result_dir = output_dir / f"result-{datetime.now():%Y%m%d_%H%M%S}"
     result_dir.mkdir(parents=True, exist_ok=True)
 
@@ -48,7 +50,8 @@ def run(input_csv: Path, output_dir: Path, config_dir: Path, model_name: str, en
             log_f.write(msg + "\n")
 
         log(f"[START] model={model.name} tickets={len(tickets)} "
-            f"classification_threshold={routing['classification_threshold']} risk={routing['risk']}")
+            f"mode={routing.get('mode', 'rule')} classification_threshold={routing['classification_threshold']}"
+            + (f" risk={routing['risk']}" if routing.get("mode") == "risk" else ""))
         decisions: list[TriageDecision] = []
         for i, t in enumerate(tickets, 1):
             d = triage_one(t, model, labels, routing)
@@ -66,7 +69,8 @@ def run(input_csv: Path, output_dir: Path, config_dir: Path, model_name: str, en
         write_triage_csv(result_dir / "triage_result.csv", decisions)
         gold = load_expected_labels(gold_csv) if gold_csv and gold_csv.exists() else {}
         metrics = compute_eval_metrics(decisions, gold) if gold else None
-        write_review_html(result_dir / "review.html", tickets, decisions, gold, metrics, model.name)
+        write_review_html(result_dir / "review.html", tickets, decisions, gold, metrics,
+                          f"{model.name} · 分流方式 {routing.get('mode', 'rule')}")
 
         routes = Counter(d.route for d in decisions)
         total_ms = sum(d.total_ms for d in decisions)
@@ -89,12 +93,14 @@ def main() -> None:
     ap.add_argument("--endpoint", default=None, help="覆寫 /v1/systemone 端點")
     ap.add_argument("--api-key", default=None, help="Jev API token")
     ap.add_argument("--eval", default=str(base / "data" / "expected_labels.csv"), help="標準標註 CSV")
+    ap.add_argument("--routing-mode", choices=["rule", "risk"], default=None,
+                    help="覆寫 routing.toml 的 mode：rule（條件規則）或 risk（風險分數）")
     ap.add_argument("--serve", action="store_true", help="執行後以本機伺服器開啟 review.html")
     ap.add_argument("--port", type=int, default=8000)
     a = ap.parse_args()
 
     result_dir = run(Path(a.input), Path(a.output_dir), Path(a.config_dir), a.model, a.endpoint,
-                     a.api_key, Path(a.eval))
+                     a.api_key, Path(a.eval), a.routing_mode)
     print(f"[OK] 輸出：{result_dir}")
     if a.serve:
         handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=str(result_dir))

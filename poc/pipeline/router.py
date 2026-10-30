@@ -41,7 +41,7 @@ def risk_score(confidence: float, urgency: str, urgency_conf: float, impact: str
 
 
 def triage_one(ticket: Ticket, model: DecisionModel, labels: dict[str, Any], routing: dict[str, Any]) -> TriageDecision:
-    """決策模型回答 3 題 → 低信心歸 other/unclear → 細項對應 route → 風險分數高則轉人工。"""
+    """決策模型回答 3 題 → 低信心歸 other/unclear → 依 mode 決定 route（rule：條件規則；risk：風險分數）。"""
     t0 = time.perf_counter()
     model_input = build_model_input(ticket, int(routing.get("max_body_chars", 300)))
     r = model.classify(model_input, labels)
@@ -67,8 +67,25 @@ def triage_one(ticket: Ticket, model: DecisionModel, labels: dict[str, Any], rou
                     confidence=r.confidence, risk=risk, **levels,
                     reason=f"分類信心 {r.confidence:.2f} < {cls_thr:.2f}，歸為 other/unclear（模型原判 {r.category}/{r.sub_category}）")
 
-    # 2. 細項對應 route；3. 風險分數 ≥ 門檻 -> human（只會從 auto 改成 human）
-    route = routing["route"][f"{r.category}/{r.sub_category}"]
+    key = f"{r.category}/{r.sub_category}"
+    mode = routing.get("mode", "rule")
+
+    if mode == "rule":
+        # 2. 條件規則：細項在 auto 清單內，且急迫度、影響程度都在允許清單內 -> auto；其餘 human
+        cond = routing["rule"]["auto"].get(key)
+        if cond is None:
+            route, why = "human", f"{key} 不在 auto 清單"
+        elif r.urgent_level not in cond["urgency"]:
+            route, why = "human", f"急迫度 {r.urgent_level} 不在 auto 條件"
+        elif r.impact_level not in cond["impact"]:
+            route, why = "human", f"影響程度 {r.impact_level} 不在 auto 條件"
+        else:
+            route, why = "auto", "符合 auto 條件"
+        return done(category=r.category, sub_category=r.sub_category, route=route, confidence=r.confidence,
+                    risk=risk, reason=f"分類信心 {r.confidence:.2f}；{why}", **levels)
+
+    # 2. 風險模式：細項對應 route；3. 風險分數 ≥ 門檻 -> human（只會從 auto 改成 human）
+    route = routing["route"][key]
     reason = f"分類信心 {r.confidence:.2f}；風險 {risk:.2f}"
     if risk >= float(risk_cfg["threshold"]) and route == "auto":
         route = "human"

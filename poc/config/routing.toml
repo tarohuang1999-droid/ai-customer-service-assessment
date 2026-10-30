@@ -1,20 +1,34 @@
 # 分流設定（定義來源：../category-priority-spec.md 第 2–4 節）
 
+mode = "rule"                    # rule：條件規則（預設）；risk：風險分數。可用 --routing-mode 覆寫
 classification_threshold = 0.50  # 細項分類信心低於此值 -> other/unclear（human）
 level_conf_threshold = 0.70      # 排序時，急迫度、影響程度的信心低於此值視為 low
 max_body_chars = 300             # 送入模型的內文長度上限（保留開頭 65% 與結尾 35%）
 
+# ── mode = "rule"：條件規則 ─────────────────────────────────────────
+# 只有列在這裡的細項，且急迫度、影響程度都在允許清單內，才是 auto；其餘一律 human。
+[rule.auto]
+"product/product_info"        = { urgency = ["low", "medium"], impact = ["low", "medium"] }
+"product/travel_rule"         = { urgency = ["low", "medium"], impact = ["low", "medium"] }
+"product/cancel_policy"       = { urgency = ["low", "medium"], impact = ["low", "medium"] }
+"order_inquiry/order_status"  = { urgency = ["low", "medium"], impact = ["low", "medium"] }
+"order_inquiry/refund_status" = { urgency = ["low", "medium"], impact = ["low", "medium"] }
+"order_inquiry/document"      = { urgency = ["low", "medium"], impact = ["low", "medium"] }
+"order_inquiry/member_points" = { urgency = ["low", "medium"], impact = ["low", "medium"] }
+"complaint/service_complaint" = { urgency = ["low", "medium"], impact = ["low", "medium"] }
+"other/business"              = { urgency = ["low", "medium"], impact = ["low", "medium"] }
+"other/irrelevant"            = { urgency = ["low", "medium"], impact = ["low", "medium"] }
+"unclear/insufficient_info"   = { urgency = ["low", "medium"], impact = ["low", "medium"] }
+
+# ── mode = "risk"：風險分數（比較用）────────────────────────────────
+# 細項先依 [route] 取得預設 route；風險分數 ≥ threshold 時改為 human。
 # 風險分數 = w_c × (1 − 分類信心) + w_u × 急迫度選 high 的信心 + w_i × 影響程度選 high 的信心
-# 風險分數 ≥ threshold -> human。權重依「三個訊號同等重要」固定為 1，不用樣本搜尋。
-# threshold 的選法：必須轉人工的工單中分數最低者，至少比 threshold 高 0.3。
 [risk]
 w_c = 1.0
 w_u = 1.0
 w_i = 1.0
 threshold = 0.6
 
-# 細項 -> route
-# auto：AI 能決定回覆的絕大部分內容（草擬），或非客服信件（自動轉交、歸檔）
 [route]
 "product/product_info" = "auto"
 "product/travel_rule" = "auto"
@@ -33,5 +47,5 @@ threshold = 0.6
 "complaint/compensation_claim" = "human"
 "other/business" = "auto"
 "other/irrelevant" = "auto"
-"other/unclear" = "human"           # 由系統指派，不是模型選項
+"other/unclear" = "human"
 "unclear/insufficient_info" = "auto"

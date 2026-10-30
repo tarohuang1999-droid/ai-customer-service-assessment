@@ -283,3 +283,28 @@ i = 影響程度選 high 時的信心，否則為 0
 - 門檻與權重不變（分類 0.5、風險 0.6、權重皆為 1）。
 - 驗證：作者用 Clef 實跑，比較平均信心、信心 < 0.7 的件數、False Auto（必須為 0）與 False Human。`run.log` 的 `input_tokens` 可確認實際長度。
 
+---
+
+## 9. 追加：條件規則（2026-10-31，作者決定）
+
+作者的本意是**條件規則**，不是風險分數：只有「特定細項 × 允許的急迫度 × 允許的影響程度」才是 auto，其餘一律 human。理由是最穩定、也最好解釋。
+
+**實作**
+
+- `routing.toml` 新增 `mode`，預設為 `"rule"`；`[rule.auto]` 是 auto 白名單，每個細項各自列出允許的急迫度與影響程度。目前 11 個細項都設成 urgency ∈ {low, medium}、impact ∈ {low, medium}。
+- 風險分數保留為比較方案（`mode = "risk"`，或 CLI `--routing-mode risk`），方便作者用 Clef 實跑後擇一。
+- 分類信心 < 0.5 → `other/unclear`，兩種模式都適用。
+- `reason` 依模式說明判斷依據，例如 `分類信心 0.76；急迫度 high 不在 auto 條件`。
+- spec §3、answer Q2 §3 與 Q3 §4、README §5 與 §6 改為以條件規則為主，風險分數列為比較方案。
+
+**用上一次 Clef 輸出重放**（描述改寫前）：條件規則 route 43/48、False Auto 0、False Human 5；風險分數 route 44/48、False Auto 0、False Human 4。差別是一筆急迫度判 high、但信心只有 0.34 的工單。
+
+**待作者驗證**：用 E1 的新描述，兩種模式各跑一次：
+
+```bash
+uv run python triage.py --model llamacpp --endpoint http://localhost:8090/v1/systemone --routing-mode rule
+uv run python triage.py --model llamacpp --endpoint http://localhost:8090/v1/systemone --routing-mode risk
+```
+
+選擇原則：False Auto 必須為 0；其次 False Human 越少越好；表現接近時，選條件規則（容易解釋，沒有需要調的參數）。選定後，文件只保留選定的方式，另一種移除或移到附錄。
+
