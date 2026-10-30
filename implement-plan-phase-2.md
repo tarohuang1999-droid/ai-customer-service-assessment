@@ -2,6 +2,9 @@
 
 **這份文件說明接下來要做什麼。**`implement-plan.md` 是過去幾輪的紀錄，執行時以本文件為準。
 
+> **進度（2026-10-31）**：Step 0、3、4、5、6、7 已完成（commit `3bd56ee` → `ea58b78`）。剩下第 6 節的驗證，需要作者用 Clef 實跑。
+> 用上次 Clef 的原始輸出重放新流程：route 44/48、**False Auto 0**、False Human 4、`other/unclear` 4 筆。
+
 ---
 
 ## 1. 目標
