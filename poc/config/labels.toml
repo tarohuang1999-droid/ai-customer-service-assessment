@@ -1,98 +1,106 @@
-# 分層決策模型設定檔（精簡描述使每次請求約 180-280 tokens，遠低於 llama.cpp 預設 512 batch 上限）
-[stage1]
-category_instructions = "判斷此旅遊客服工單的主類別"
-urgency_instructions = "是否為72小時內急件（明天或今日出發/使用、旅途中房間有蟑螂、帳號被鎖待付款）？"
-impact_instructions = "是否為高影響事件（退改或求償逾3萬、重複扣款、導遊失職或飯店不符要求賠償、揚言找消保官/媒體/止付）？"
+# 決策模型 3 階段選擇題設定檔（每次呼叫選項皆 < 20 個）
+# Stage 1 (stage=classification): 合併 category/sub_category 直接選出分類（14 個模型選項 + 2 個規則前置攔截項）
+# Stage 2 (stage=urgent_level): 時間緊迫程度選擇題（high / medium / low）
+# Stage 3 (stage=impact_level): 業務與財務影響程度選擇題（high / medium / low）
 
-[categories.product_inquiry]
-description = "售前產品與行程詢問：團費包含項目、小孩收費、JR PASS兌換、護照簽證效期、素食、輪椅無障礙、郵輪艙房"
+[classification]
+instructions = "根據客服工單的主旨與內文，選出最符合的『主類別/細項分類（category/sub_category）』"
 
-[categories.order_service]
-description = "訂單服務與帳務：未收到確認信或QR code、行程表與出發通知寄送時間、點數折抵、改發票統編、英文收據、帳號被鎖、結帳金額不符"
-
-[categories.refund_change]
-description = "取消退費或修改訂單：住院/骨折/颱風取消退費、提供帳戶要求退款、問取消手續費或退款天數、改期、換接送飯店、改護照名、團員退出、加購嬰兒票或行李"
-
-[categories.complaint]
-description = "客訴抱怨與扣款求償：抱怨電話打不通、投訴導遊滑手機或遲到錯過班機、房間有蟑螂或發霉、重複扣款、客服報錯價、揚言找消保官或媒體"
-
-[categories.other_non_cs]
-description = "非客服外部信件：企業員工旅遊包團詢價、巴士包車報價、應徵導遊職缺、KOL業配合作、記者媒體採訪"
-
-[categories.unknown]
-description = "內文極短缺乏上下文（如只寫可以退嗎）"
-
-# Stage 2: 細項分類（Sub-categories）與預設路由
-[sub_categories.product_inquiry]
-instructions = "判斷此產品詢問的細項類別"
-
-[sub_categories.product_inquiry.options.product_spec_and_price]
+# 1. product_inquiry（售前產品詢問）
+[classification.options."product_inquiry/product_spec_and_price"]
 route = "auto"
-description = "團費包含項目、2歲小孩收費、JR PASS兌換地點與方式"
+description = "【售前產品詢問—規格與費用】尚未下單或詢問產品內容：團費包含項目（小費/稅金）、2歲兒童收費方式、JR PASS票券兌換地點與是否需帶護照正本、購買前詢問冬季合掌村大雪停駛是否取消與退費通則"
 
-[sub_categories.product_inquiry.options.policy_and_regulation]
+[classification.options."product_inquiry/policy_and_regulation"]
 route = "auto"
-description = "護照效期不足六個月規定、泰國落地簽或簽證規定"
+description = "【售前產品詢問—旅遊法規與簽證】詢問出國入境護照效期不足六個月規定、泰國落地簽或最新簽證規定、旅遊保險通則"
 
-[sub_categories.product_inquiry.options.customization_request]
+[classification.options."product_inquiry/customization_request"]
 route = "human"
-description = "特殊客製化安排：全素食餐、輪椅無障礙房與斜坡巴士、郵輪指定高樓層或船中段艙房"
+description = "【售前產品詢問—特殊客製化需求】需人工向供應商確認之特殊安排：全素食機上餐與團體餐、長輩輪椅無障礙房與斜坡巴士、郵輪指定高樓層或船中段艙房"
 
-[sub_categories.order_service]
-instructions = "判斷此訂單服務的細項類別"
-
-[sub_categories.order_service.options.order_status_and_points]
+# 2. order_info（訂單與規定查詢）
+[classification.options."order_info/order_status_and_points"]
 route = "auto"
-description = "詢問行程表或出發通知何時寄出、旺來金點數折抵規則"
+description = "【訂單與規定查詢—訂單狀態與點數】已下單查詢進度或會員點數：詢問行程表或行前出發通知何時寄出、詢問會員旺來金點數折抵上限與過期規則"
 
-[sub_categories.order_service.options.document_reissue_and_invoice]
+[classification.options."order_info/order_policy_and_refund_status"]
 route = "auto"
-description = "未收到確認信或電子票券QR code、發票統編重開或改三聯式、開立英文收據invoice"
+description = "【訂單與規定查詢—退改規定與退款進度】僅查詢規定或查帳（未要求執行退改）：詢問出發前3天取消手續費比例與定型化契約級距、查詢已辦理之信用卡退款還需幾個工作天入帳"
 
-[sub_categories.order_service.options.account_and_pricing_issue]
+[classification.options."order_info/document_and_invoice"]
+route = "auto"
+description = "【訂單與規定查詢—憑證與發票收據】索取訂單憑證或修改發票：刷卡後未收到確認信、未收到電子門票QR code、發票統編打錯申請重開、二聯式改開三聯式發票、開立英文收據invoice"
+
+[classification.options."order_info/account_and_pricing_issue"]
 route = "human"
-description = "會員帳號被鎖無法登入、網頁價格與結帳金額不同"
+description = "【訂單與規定查詢—帳號登入與結帳價差】系統帳號或結帳金額異常：會員帳號被鎖且收不到驗證碼（含待付款訂單）、官網標價與結帳金額不同（如21900變25400）"
 
-[sub_categories.refund_change]
-instructions = "判斷此退改工單是純問退改通則、申請修改訂單、還是申請取消退費"
-
-[sub_categories.refund_change.options.refund_change_policy_general]
-route = "auto"
-description = "純詢問通則未實際退改：出發前3天取消手續費比例、信用卡退款入帳天數、購買前問合掌村大雪停駛是否取消"
-
-[sub_categories.refund_change.options.order_modification]
+# 3. order_change（訂單修改與加購）
+[classification.options."order_change/schedule_or_group_change"]
 route = "human"
-description = "申請修改已訂行程：改期到4月、加購嬰兒票、加購托運行李、更改接送飯店pickup hotel、更正護照英文名、12人團2人退出"
+description = "【訂單修改與加購—改期與團體異動】針對已成立訂單申請變更行程：申請改期到其他月份梯次並問差價、英文或中文申請更改一日遊接送飯店pickup hotel、團體12人中有2人退出詢問團費變動"
 
-[sub_categories.refund_change.options.order_cancellation_refund]
+[classification.options."order_change/passenger_or_addon_change"]
 route = "human"
-description = "申請取消行程或辦理退款：住院或骨折申請取消退費、明日出發遇颱風問延期退費、提供銀行帳戶要求匯入退款"
+description = "【訂單修改與加購—旅客資料與加購】針對已成立訂單修改名單或加購：更正旅客護照英文姓名拼音錯誤、已訂訂單申請加購嬰兒票、已訂廉航行程申請加購回程托運行李重量"
 
-[sub_categories.complaint]
-instructions = "判斷此客訴是純抱怨電話等待，還是實質服務瑕疵與扣款求償爭議"
-
-[sub_categories.complaint.options.pure_complaint]
-route = "auto"
-description = "純抱怨電話打不通或等40分鐘沒人接，未要求賠償或退款"
-
-[sub_categories.complaint.options.service_or_billing_dispute]
+# 4. order_refund（訂單取消與退費）
+[classification.options."order_refund/cancellation_refund_request"]
 route = "human"
-description = "服務瑕疵或扣款求償：導遊滑手機與行程縮水、領隊遲到錯過班機求償、房間有蟑螂或發霉、疑似重複扣款、客服回錯改期費要求退錢"
+description = "【訂單取消與退費—申請取消行程與退費】針對已成立訂單申請取消退費：因家母住院申請取消退費、因父親車禍骨折開刀申請18.6萬全額退費、明日出發遇颱風警報詢問延期與退費"
 
-[sub_categories.other_non_cs]
-instructions = "判斷此非客服信件是商務公關人資轉介，還是廣告測試單"
-
-[sub_categories.other_non_cs.options.b2b_media_hr_referral]
+[classification.options."order_refund/refund_payout_request"]
 route = "human"
-description = "企業包團詢價、巴士包車報價、應徵導遊職缺、KOL業配合作、記者媒體採訪"
+description = "【訂單取消與退費—退款匯款帳戶作業】已辦理取消之訂單提供身分證、手機與銀行帳號，要求將退款匯入指定銀行帳戶"
 
-[sub_categories.other_non_cs.options.spam_or_test]
+# 5. complaint（客訴與爭議）
+[classification.options."complaint/pure_complaint"]
 route = "auto"
-description = "博弈廣告或系統測試單"
+description = "【客訴與爭議—純抱怨服務通道】純粹抱怨客服電話打不通或等40分鐘沒人接，未要求賠償或退款（或僅順帶一般行程表寄送詢問）"
 
-[sub_categories.unknown]
-instructions = "待釐清工單"
+[classification.options."complaint/service_or_billing_dispute"]
+route = "human"
+description = "【客訴與爭議—實質服務瑕疵與扣款求償】要求賠償、退款或升級申訴：投訴導遊滑手機與行程縮水求償、領隊遲到致錯過班機求償、旅途中飯店房間有蟑螂或老舊發霉、疑似重複扣款與二次催單、投訴客服報錯改期費要求退還"
 
-[sub_categories.unknown.options.insufficient_info]
+# 6. other_non_cs（非客服信件）
+[classification.options."other_non_cs/b2b_media_hr_referral"]
+route = "human"
+description = "【非客服信件—商務公關與人資轉介】非一般旅客客服之外部信件：120人企業包團員工旅遊詢價、遊覽車供應商回傳包車報價單、應徵日語導遊或OP職缺、KOL洽談旅遊業配合作、財經記者媒體採訪邀約"
+
+[classification.options."other_non_cs/spam_or_test"]
 route = "auto"
-description = "內文過短缺乏訂單號與訴求"
+precheck_only = true
+description = "【非客服信件—廣告或系統測試單】由前置規則直接攔截：外部博弈體驗金推銷廣告、內部系統測試單"
+
+# 7. unknown（待釐清／需補件）
+[classification.options."unknown/insufficient_info"]
+route = "auto"
+precheck_only = true
+description = "【待釐清—資訊不足需補件】由前置規則直接攔截：內文極短（如僅『可以退嗎』）且缺乏訂單號與具體訴求上下文"
+
+# Stage 2: 時間緊迫程度（urgent_level）
+[urgent_level]
+instructions = "評估此工單的時間緊迫程度（urgent_level）"
+
+[urgent_level.options.high]
+description = "極度緊急（對應 P4 超重要）：72小時內（含今日、明日、後天）即將出發或使用票券、旅途中突發危機（領隊遲到錯過班機、飯店房間有蟑螂）、或帳號被鎖且有待付款訂單急需處理"
+
+[urgent_level.options.medium]
+description = "近期需處理：出發日在3天至14天內的訂單改期、加購、換接送飯店或單據補正需求"
+
+[urgent_level.options.low]
+description = "一般非急件：出發日在2週以上、純售前產品與簽證詢問、一般訂單與退款進度查詢、發票統編重開、事後客訴求償或非客服外部信件"
+
+# Stage 3: 業務與財務影響程度（impact_level）
+[impact_level]
+instructions = "評估此工單的業務與財務影響程度（impact_level）"
+
+[impact_level.options.high]
+description = "高影響（對應 P3 高優先）：退改或求償金額超過30,000元、疑似重複扣款或多收費用、嚴重服務瑕疵（導遊失職、行程縮水、錯過班機、房間有蟑螂）、揚言找消保官或媒體爆料、同客重複催單"
+
+[impact_level.options.medium]
+description = "中度影響：一般訂單改期、更改接送飯店、更正護照英文拼音、加購嬰兒票或行李、一般取消退費申請、帳號登入或結帳價差"
+
+[impact_level.options.low]
+description = "低影響：單純詢問產品規格與費用、護照簽證規定、查訂單或退款進度、補寄確認信與修改發票統編、純抱怨電話難打無求償、非客服外部信件"

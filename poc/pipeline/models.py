@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
@@ -12,14 +13,19 @@ from typing import Any, Protocol
 class ClassificationResult:
     category: str
     sub_category: str
-    category_conf: float
-    sub_category_conf: float
     confidence: float
-    is_urgent_prob: float
-    is_high_impact_prob: float
+    urgent_level: str
+    urgent_conf: float
+    impact_level: str
+    impact_conf: float
     model_name: str
-    category_probs: dict[str, float] = field(default_factory=dict)
-    sub_category_probs: dict[str, float] = field(default_factory=dict)
+    stage_classification_ms: float = 0.0
+    stage_urgent_ms: float = 0.0
+    stage_impact_ms: float = 0.0
+    classification_probs: dict[str, float] = field(default_factory=dict)
+    urgent_probs: dict[str, float] = field(default_factory=dict)
+    impact_probs: dict[str, float] = field(default_factory=dict)
+    model_traces: list[dict[str, Any]] = field(default_factory=list)
     error: str | None = None
 
 
@@ -30,7 +36,12 @@ class DecisionModel(Protocol):
 
 
 class _SystemOneHTTPBase:
-    """Shared two-stage hierarchical client for /v1/systemone (llama.cpp Clef & Jev API)."""
+    """3-stage Choice client for /v1/systemone (llama.cpp Clef & Jev API).
+
+    Stage 1 (classification): Merged category/sub_category choice (14 options < 20)
+    Stage 2 (urgent_level): Time urgency degree choice (high / medium / low)
+    Stage 3 (impact_level): Business & financial impact degree choice (high / medium / low)
+    """
 
     def __init__(self, name: str, endpoint: str, headers: dict[str, str], timeout: float = 30.0) -> None:
         self.name = name
@@ -38,93 +49,128 @@ class _SystemOneHTTPBase:
         self.headers = headers
         self.timeout = timeout
 
-    def _post_systemone(self, state_str: str, questions: dict[str, Any]) -> dict[str, Any]:
-        body = json.dumps({"state": state_str, "questions": questions}, ensure_ascii=False).encode("utf-8")
+    def _post_systemone(
+        self,
+        stage_name: str,
+        state_str: str,
+        questions: dict[str, Any],
+        traces: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        payload = {"state": state_str, "questions": questions}
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         req = urllib.request.Request(self.endpoint, data=body, headers=self.headers, method="POST")
-        with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-            return json.loads(resp.read().decode("utf-8"))
+        t0 = time.perf_counter()
+        try:
+            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as http_err:
+            err_body = http_err.read().decode("utf-8", errors="replace")
+            raise RuntimeError(f"HTTP {http_err.code} in stage={stage_name}: {err_body}") from http_err
+
+        ms = round((time.perf_counter() - t0) * 1000, 1)
+        traces.append(
+            {
+                "stage": stage_name,
+                "ms": ms,
+                "input_tokens": data.get("usage", {}).get("input_tokens"),
+                "input": payload,
+                "output": data.get("answers", {}),
+            }
+        )
+        return data
 
     def classify(self, state_str: str, labels_cfg: dict[str, Any]) -> ClassificationResult:
+        t0 = time.perf_counter()
+        traces: list[dict[str, Any]] = []
         try:
-            # Stage 1: Main Category (5 choices, keeping input_tokens well below 512 batch limit)
-            cat_criteria = {
-                k: v["description"]
-                for k, v in labels_cfg["categories"].items()
-                if k != "unknown"
+            # Stage 1: Merged classification (category/sub_category, 14 options < 20)
+            t_c0 = time.perf_counter()
+            clf_cfg = labels_cfg["classification"]
+            merged_criteria = {
+                pair_key: opt_val["description"]
+                for pair_key, opt_val in clf_cfg["options"].items()
+                if not opt_val.get("precheck_only", False)
             }
-            stage1_q = {
-                "category": {
+            q_clf = {
+                "classification": {
                     "type": "choice",
-                    "instructions": labels_cfg["stage1"]["category_instructions"],
-                    "criteria": cat_criteria,
+                    "instructions": clf_cfg["instructions"],
+                    "criteria": merged_criteria,
                 }
             }
-            r1 = self._post_systemone(state_str, stage1_q)
-            cat_ans = r1["answers"]["category"]
-            category = str(cat_ans["choice"])
-            cat_probs = {k: float(v) for k, v in cat_ans.get("probabilities", {}).items()}
-            cat_conf = float(cat_ans.get("confidence", cat_probs.get(category, 0.0)))
+            r1 = self._post_systemone("classification", state_str, q_clf, traces)
+            stage_clf_ms = round((time.perf_counter() - t_c0) * 1000, 1)
 
-            # Stage 2: Sub-category (2-3 choices)
-            sub_group = labels_cfg["sub_categories"][category]
-            sub_options = sub_group["options"]
-            if len(sub_options) == 1:
-                sub_cat = next(iter(sub_options))
-                sub_probs = {sub_cat: 1.0}
-                sub_conf = cat_conf
-            else:
-                stage2_q: dict[str, Any] = {
-                    "sub_category": {
-                        "type": "choice",
-                        "instructions": sub_group["instructions"],
-                        "criteria": {k: v["description"] for k, v in sub_options.items()},
-                    }
+            ans1 = r1["answers"]["classification"]
+            chosen_pair = str(ans1["choice"])
+            category, sub_cat = chosen_pair.split("/", 1)
+            clf_probs = {k: round(float(v), 4) for k, v in ans1.get("probabilities", {}).items()}
+            clf_conf = float(ans1.get("confidence", clf_probs.get(chosen_pair, 0.0)))
+
+            # Stage 2: urgent_level (choice: high / medium / low)
+            t_u0 = time.perf_counter()
+            urg_cfg = labels_cfg["urgent_level"]
+            q_urg = {
+                "urgent_level": {
+                    "type": "choice",
+                    "instructions": urg_cfg["instructions"],
+                    "criteria": {k: v["description"] for k, v in urg_cfg["options"].items()},
                 }
-                r2 = self._post_systemone(state_str, stage2_q)
-                sub_ans = r2["answers"]["sub_category"]
-                sub_cat = str(sub_ans["choice"])
-                sub_probs = {k: float(v) for k, v in sub_ans.get("probabilities", {}).items()}
-                sub_conf = float(sub_ans.get("confidence", sub_probs.get(sub_cat, 0.0)))
-
-            # Stage 3: Urgency & Impact (2 lightweight noul questions)
-            stage3_q: dict[str, Any] = {
-                "is_urgent": {
-                    "type": "noul",
-                    "instructions": labels_cfg["stage1"]["urgency_instructions"],
-                },
-                "is_high_impact": {
-                    "type": "noul",
-                    "instructions": labels_cfg["stage1"]["impact_instructions"],
-                },
             }
-            r3 = self._post_systemone(state_str, stage3_q)
-            ans3 = r3["answers"]
-            urgent_prob = float(ans3["is_urgent"]["noul"])
-            impact_prob = float(ans3["is_high_impact"]["noul"])
+            r2 = self._post_systemone("urgent_level", state_str, q_urg, traces)
+            stage_urg_ms = round((time.perf_counter() - t_u0) * 1000, 1)
+            ans2 = r2["answers"]["urgent_level"]
+            urgent_level = str(ans2["choice"])
+            urgent_probs = {k: round(float(v), 4) for k, v in ans2.get("probabilities", {}).items()}
+            urgent_conf = float(ans2.get("confidence", urgent_probs.get(urgent_level, 0.0)))
 
-            combined_conf = round(min(cat_conf, sub_conf), 4)
+            # Stage 3: impact_level (choice: high / medium / low)
+            t_i0 = time.perf_counter()
+            imp_cfg = labels_cfg["impact_level"]
+            q_imp = {
+                "impact_level": {
+                    "type": "choice",
+                    "instructions": imp_cfg["instructions"],
+                    "criteria": {k: v["description"] for k, v in imp_cfg["options"].items()},
+                }
+            }
+            r3 = self._post_systemone("impact_level", state_str, q_imp, traces)
+            stage_imp_ms = round((time.perf_counter() - t_i0) * 1000, 1)
+            ans3 = r3["answers"]["impact_level"]
+            impact_level = str(ans3["choice"])
+            impact_probs = {k: round(float(v), 4) for k, v in ans3.get("probabilities", {}).items()}
+            impact_conf = float(ans3.get("confidence", impact_probs.get(impact_level, 0.0)))
+
             return ClassificationResult(
                 category=category,
                 sub_category=sub_cat,
-                category_conf=round(cat_conf, 4),
-                sub_category_conf=round(sub_conf, 4),
-                confidence=combined_conf,
-                is_urgent_prob=round(urgent_prob, 4),
-                is_high_impact_prob=round(impact_prob, 4),
+                confidence=round(clf_conf, 4),
+                urgent_level=urgent_level,
+                urgent_conf=round(urgent_conf, 4),
+                impact_level=impact_level,
+                impact_conf=round(impact_conf, 4),
                 model_name=self.name,
-                category_probs=cat_probs,
-                sub_category_probs=sub_probs,
+                stage_classification_ms=stage_clf_ms,
+                stage_urgent_ms=stage_urg_ms,
+                stage_impact_ms=stage_imp_ms,
+                classification_probs=clf_probs,
+                urgent_probs=urgent_probs,
+                impact_probs=impact_probs,
+                model_traces=traces,
             )
-        except (urllib.error.URLError, TimeoutError, KeyError, ValueError, OSError) as exc:
+        except Exception as exc:
+            elapsed = round((time.perf_counter() - t0) * 1000, 1)
             return ClassificationResult(
                 category="unknown",
                 sub_category="insufficient_info",
-                category_conf=0.0,
-                sub_category_conf=0.0,
                 confidence=0.0,
-                is_urgent_prob=0.0,
-                is_high_impact_prob=0.0,
+                urgent_level="low",
+                urgent_conf=0.0,
+                impact_level="low",
+                impact_conf=0.0,
                 model_name=self.name,
+                stage_classification_ms=elapsed,
+                model_traces=traces,
                 error=f"{type(exc).__name__}: {exc}",
             )
 
@@ -155,67 +201,61 @@ class JevAPIClient(_SystemOneHTTPBase):
 
 
 class MockDecisionModel:
-    """Offline hierarchical keyword-scoring baseline implementing the same 2-stage flow."""
+    """Offline keyword-scoring baseline matching the 3-stage Choice interface."""
 
     name = "mock-baseline"
 
-    _SUB_KEYWORDS: dict[str, list[str]] = {
-        "spam_or_test": ["博弈", "體驗金", "儲值再送", "加賴好友"],
-        "b2b_media_hr_referral": ["企業包團", "員工旅遊", "包車報價", "應徵", "履歷", "業配", "互惠合作", "媒體採訪", "記者"],
-        "pure_complaint": ["電話是裝飾品", "電話都打不通", "40 分鐘沒人接"],
-        "service_or_billing_dispute": ["導遊態度差", "行程縮水", "重複扣款", "消保官", "領隊遲到", "錯過班機", "蟑螂", "回錯資訊", "多收"],
-        "refund_change_policy_general": ["手續費是收百分之多少", "定型化契約", "多久會入帳", "大雪導致巴士停駛"],
-        "order_modification": ["加購嬰兒票", "想改期", "change my pickup", "Change pickup hotel", "英文名拼錯", "2 人退出", "加購托運行李", "加購行李"],
-        "order_cancellation_refund": ["想取消行程", "住院", "骨折開刀", "全額退費", "颱風會不會延期", "匯到我台灣銀行帳戶", "退款請匯到"],
-        "account_and_pricing_issue": ["帳號被鎖", "無法登入", "價格與結帳金額不同", "標價錯誤"],
-        "document_reissue_and_invoice": ["未收到確認信", "發票統編打錯", "三聯式發票", "沒收到電子票券", "QR code", "英文收據", "invoice"],
-        "order_status_and_points": ["行程表何時寄出", "出發通知何時會來", "旺來金", "折抵"],
-        "customization_request": ["指定樓層", "指定高樓層", "素食餐", "全素", "輪椅", "無障礙房"],
-        "policy_and_regulation": ["護照效期", "效期剩不到六個月", "落地簽", "簽證規定"],
-        "product_spec_and_price": ["費用內含項目", "導遊小費", "2 歲小孩收費", "JR PASS", "哪裡兌換"],
+    _PAIR_KEYWORDS: dict[str, list[str]] = {
+        "other_non_cs/b2b_media_hr_referral": ["企業包團", "員工旅遊", "包車報價", "應徵", "履歷", "業配", "互惠合作", "媒體採訪", "記者"],
+        "complaint/pure_complaint": ["電話是裝飾品", "電話都打不通", "40 分鐘沒人接"],
+        "complaint/service_or_billing_dispute": ["導遊態度差", "行程縮水", "重複扣款", "消保官", "領隊遲到", "錯過班機", "蟑螂", "回錯資訊", "多收"],
+        "order_refund/cancellation_refund_request": ["想取消行程", "住院", "骨折開刀", "全額退費", "颱風會不會延期"],
+        "order_refund/refund_payout_request": ["匯到我台灣銀行帳戶", "退款請匯到"],
+        "order_change/schedule_or_group_change": ["想改期", "change my pickup", "Change pickup hotel", "2 人退出"],
+        "order_change/passenger_or_addon_change": ["加購嬰兒票", "英文名拼錯", "加購托運行李", "加購行李"],
+        "order_info/account_and_pricing_issue": ["帳號被鎖", "無法登入", "價格與結帳金額不同", "標價錯誤"],
+        "order_info/document_and_invoice": ["未收到確認信", "發票統編打錯", "三聯式發票", "沒收到電子票券", "QR code", "英文收據", "invoice"],
+        "order_info/order_policy_and_refund_status": ["手續費是收百分之多少", "定型化契約", "多久會入帳"],
+        "order_info/order_status_and_points": ["行程表何時寄出", "出發通知何時會來", "旺來金", "折抵"],
+        "product_inquiry/customization_request": ["指定樓層", "指定高樓層", "素食餐", "全素", "輪椅", "無障礙房"],
+        "product_inquiry/policy_and_regulation": ["護照效期", "效期剩不到六個月", "落地簽", "簽證規定"],
+        "product_inquiry/product_spec_and_price": ["費用內含項目", "導遊小費", "2 歲小孩收費", "JR PASS", "哪裡兌換", "大雪導致巴士停駛"],
     }
 
     def classify(self, state_str: str, labels_cfg: dict[str, Any]) -> ClassificationResult:
-        scores: dict[str, float] = {cat: 0.1 for cat in labels_cfg["categories"]}
-        sub_scores: dict[str, dict[str, float]] = {
-            cat: {sub: 0.1 for sub in labels_cfg["sub_categories"][cat]["options"]}
-            for cat in labels_cfg["categories"]
-        }
+        t0 = time.perf_counter()
+        pair_scores: dict[str, float] = {}
+        for pair, opt_val in labels_cfg["classification"]["options"].items():
+            if opt_val.get("precheck_only", False):
+                continue
+            pair_scores[pair] = 0.1
+            for kw in self._PAIR_KEYWORDS.get(pair, []):
+                if kw in state_str:
+                    pair_scores[pair] += 2.0
 
-        for cat, group in labels_cfg["sub_categories"].items():
-            for sub in group["options"]:
-                for kw in self._SUB_KEYWORDS.get(sub, []):
-                    if kw in state_str:
-                        scores[cat] += 1.5
-                        sub_scores[cat][sub] += 2.0
+        total = sum(pair_scores.values())
+        probs = {k: round(v / total, 4) for k, v in pair_scores.items()}
+        best_pair = max(probs, key=lambda k: probs[k])
+        best_cat, best_sub = best_pair.split("/", 1)
+        conf = min(0.95, round(probs[best_pair] + 0.45, 4)) if pair_scores[best_pair] > 0.1 else 0.45
 
-        # Normalize Stage 1 probabilities
-        total_cat = sum(scores.values())
-        cat_probs = {k: round(v / total_cat, 4) for k, v in scores.items()}
-        best_cat = max(cat_probs, key=lambda k: cat_probs[k])
-        cat_conf = min(0.95, round(cat_probs[best_cat] + 0.35, 4)) if scores[best_cat] > 0.1 else 0.45
-
-        # Normalize Stage 2 probabilities within best_cat
-        s_map = sub_scores[best_cat]
-        total_sub = sum(s_map.values())
-        sub_probs = {k: round(v / total_sub, 4) for k, v in s_map.items()}
-        best_sub = max(sub_probs, key=lambda k: sub_probs[k])
-        sub_conf = min(0.96, round(sub_probs[best_sub] + 0.30, 4)) if s_map[best_sub] > 0.1 else 0.45
-
-        urgent_p = 0.88 if any(k in state_str for k in ["明天", "蟑螂", "帳號被鎖"]) else 0.08
-        impact_p = 0.90 if any(k in state_str for k in ["消保官", "重複扣款", "186,000", "45,000", "導遊態度差"]) else 0.10
+        urg_level = "high" if any(k in state_str for k in ["明天", "蟑螂", "帳號被鎖"]) else "low"
+        imp_level = "high" if any(k in state_str for k in ["消保官", "重複扣款", "186,000", "45,000", "導遊態度差"]) else "low"
+        elapsed = round((time.perf_counter() - t0) * 1000, 2)
 
         return ClassificationResult(
             category=best_cat,
             sub_category=best_sub,
-            category_conf=cat_conf,
-            sub_category_conf=sub_conf,
-            confidence=round(min(cat_conf, sub_conf), 4),
-            is_urgent_prob=urgent_p,
-            is_high_impact_prob=impact_p,
+            confidence=conf,
+            urgent_level=urg_level,
+            urgent_conf=0.90,
+            impact_level=imp_level,
+            impact_conf=0.90,
             model_name=self.name,
-            category_probs=cat_probs,
-            sub_category_probs=sub_probs,
+            stage_classification_ms=elapsed,
+            classification_probs=probs,
+            urgent_probs={urg_level: 0.90},
+            impact_probs={imp_level: 0.90},
         )
 
 

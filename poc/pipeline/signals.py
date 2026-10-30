@@ -102,12 +102,10 @@ def extract_signals(ticket: Ticket, regex_cfg: dict[str, Any]) -> Signals:
     )
 
 
-def build_structured_state(ticket: Ticket, signals: Signals) -> str:
-    tags = ",".join(signals.active_tags()) or "none"
-    return (
-        f"ticket_id: {ticket.ticket_id}\n"
-        f"channel: {ticket.channel} | customer: {ticket.customer_name}\n"
-        f"signals: {tags}\n"
-        f"subject: {ticket.subject}\n"
-        f"body: {ticket.body}"
-    )
+def build_structured_state(ticket: Ticket, signals: Signals, max_body_chars: int = 300) -> str:
+    body = ticket.body
+    if len(body) > max_body_chars:
+        head_n = int(max_body_chars * 0.65)
+        tail_n = max_body_chars - head_n
+        body = f"{body[:head_n]}...{body[-tail_n:]}"
+    return f"主旨：{ticket.subject}\n內文：{body}"
