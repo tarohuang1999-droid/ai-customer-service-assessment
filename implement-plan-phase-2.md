@@ -92,25 +92,45 @@ i = 影響程度選 high 時的信心，否則為 0
 
 **需要作者確認的一點**：現有的 `unclear/insufficient_info`（模型判斷「客戶資訊不足」，套用補件模板、auto）和新的 `other/unclear`（系統信心不足、轉人工）名稱相近，但意義和 route 都不同。建議兩者都保留；若覺得容易混淆，可以把前者改名為 `unclear/need_more_info`。
 
-### 4.4 標準答案：13 筆有疑問（**尚待作者確認**）
+### 4.4 標準答案：13 筆的決定（作者已決定）
 
-依原則 3 重新檢查 48 筆。其餘 35 筆沒有爭議。作者回覆「照建議」即採用建議欄；#7 需要作者選 P2 或 P3。
-
-| # | 工單 | 目前標註 | 疑問 | 建議 |
+| # | 工單 | 原標註 | 作者決定 | 連帶的定義修改 |
 | --- | --- | --- | --- | --- |
-| 1 | TK-1004 電話 40 分鐘沒人接（順帶問行程表） | complaint/service_complaint · human · P2 | 回覆內容 AI 寫得出來，依原則 3 可能是 auto | **維持 human**：要不要補償、怎麼安撫是人的判斷，AI 決定不了 |
-| 2 | TK-1024 電話都打不通（一句話） | complaint/service_complaint · human · P2 | 同上；內容很短，也可能歸 unclear | **維持**：有明確不滿，不是資訊不足 |
-| 3 | TK-1009 郵輪艙房可否指定樓層 | product/product_info · auto · P2 | Clef 兩次信心都低，與 custom_request 混淆 | **維持 auto**：知識庫可以回答指定規則 |
-| 4 | TK-1045 加購行李的價格與期限 | product/product_info · auto · P2 | 客戶似乎已有訂單，價格要查該筆訂單 | **改為 order_inquiry**（需要訂單資料），route 仍為 auto；需新增或擴充對應細項 |
-| 5 | TK-1040 泰國簽證最近有變 | product/travel_rule · auto · P2 | 知識庫可能過期 | **維持 auto**：分流階段無法得知知識庫新不新，由草擬階段「查無有效依據 → human」處理 |
-| 6 | TK-1030 網頁標價與結帳金額不同 | system_issue/checkout_error · human · P2 | 可能只是正常加價 | **維持 human**：是不是系統錯誤要查了才知道 |
-| 7 | TK-1016 帳號被鎖，有待付款訂單 | system_issue/account_access · human · P2 | 作者先前說過 P3，後來又說影響不大 | **請作者決定**。若選 P3，影響程度 high 要加上通用描述 |
-| 8 | TK-1031 揚言今天就請銀行止付 | system_issue/checkout_error · human · P3 | 當日期限是否算急迫 | **維持 P3**：急迫度看出發或使用時間，客戶設的回覆期限算影響程度 |
-| 9 | TK-1019 飯店與網頁不符，揚言找消保官 | complaint/compensation_claim · human · P3 | 若仍在旅途中，應歸 trip_incident · P4 | **維持**：內文沒有在旅途中的訊號 |
-| 10 | TK-1044 客服報錯價，要求退還 1,500 元 | complaint/compensation_claim · human · P3 | 小額求償是否也要 P3 | **維持**：求償類下限 P3，簡單好解釋 |
-| 11 | TK-1028 護照英文名拼錯，兩週後出發 | order_change/data_correction · human · P2 | 可能無法登機，影響程度是否為 high | **改 P3**，影響程度 high 補上「可能導致無法成行」 |
-| 12 | TK-1033 「可以退嗎」 | unclear/insufficient_info · auto · P2 | 模型兩次都判 cancel_policy；兩者 route 都是 auto | **維持** |
-| 13 | TK-1047 記者採訪，週五截稿 | other/business · human · P1 | 有期限，排最後是否合理 | **維持 P1**：轉交公關，不佔客服佇列 |
+| 1 | TK-1004 電話 40 分鐘沒人接（順帶問行程表） | complaint/service_complaint · human | **auto** | `complaint/service_complaint` 的 route 改為 auto：AI 可以草擬致歉與回答，客服確認後送出 |
+| 2 | TK-1024 電話都打不通 | complaint/service_complaint · human | **auto** | 同上 |
+| 3 | TK-1009 郵輪艙房可否指定樓層 | product/product_info · auto | **維持 auto** | `custom_request` 只保留給需另外報價或個案確認的客製化服務 |
+| 4 | TK-1045 加購行李的價格與期限 | product/product_info · auto | **order_inquiry · auto** | 「已成立訂單的加購價格與期限」從 `product_info` 移到 `order_inquiry/order_status`，擴充其定義為「已成立訂單的狀態與內容查詢」。不為一筆工單新增細項 |
+| 5 | TK-1040 泰國簽證最近有變 | product/travel_rule · auto | **維持 auto** | 知識庫是否過期，由知識庫的更新時間判斷（草擬階段）；分流階段照常產生草稿 |
+| 6 | TK-1030 標價與結帳金額不同 | system_issue/checkout_error · human | **維持 human**（預設為系統錯誤） | — |
+| 7 | TK-1016 帳號被鎖，有待付款訂單 | P2 | **P3** | 依 4.5 決定是否保留優先級 |
+| 8 | TK-1031 揚言今天就請銀行止付 | P3 | **P4** | 同上 |
+| 9 | TK-1019 飯店不符，揚言找消保官 | P3 | **P4** | 同上 |
+| 10 | TK-1044 小額求償 1,500 元 | P3 | **P3** | 同上 |
+| 11 | TK-1028 護照拼錯，兩週後出發 | P2 | **P2**（還有兩週，來得及） | 同上 |
+| 12 | TK-1033 「可以退嗎」 | unclear/insufficient_info · auto | **維持 unclear** | — |
+| 13 | TK-1047 記者採訪 | other/business · human · P1 | **other · auto** | `other/business` 的 route 改為 auto：自動轉交對應部門（公關、人資、採購），客服不處理。同細項的供應商報價、求職、業配一併改為 auto |
+
+**對 route 定義的影響**：auto 的意思擴充為兩種，spec 與 answer 都要寫清楚：
+
+- **草擬**：AI 能決定回覆的絕大部分內容，產生草稿，客服確認後送出。
+- **自動轉交或歸檔**：非客服信件自動轉給對應部門，或直接歸檔，客服不需處理。
+
+### 4.5 優先級是否保留（討論中）
+
+題目沒有要求 priority（`triage_result.csv` 只要求 `ticket_id, category, route, reason`）。4.4 的 #7–#11 顯示，優先級的判斷高度主觀，很難寫成一致的規則：
+
+- 「揚言今天止付」判 P4，但它和旅行時間無關。
+- 「飯店不符」判 P4，但內文沒有在旅途中的訊號。
+
+規則和標註對不起來，priority 的評估也就沒有意義。
+
+**建議**：
+
+1. 移除 P1–P4，包括對應表、細項下限、固定值，以及標準答案的 priority 欄。
+2. 急迫度與影響程度的模型提問**保留**，因為 D3 的風險分數要用。
+3. 選做：輸出一個 `urgent` 標記（等於急迫度 high），不額外判斷，只讓 answer Q1、Q5 的「急件置頂」在 PoC 有對應。標準答案不標這一欄，也不評估。
+
+**作者待決定**：是否移除 priority；是否保留 `urgent` 標記。
 
 ---
 
