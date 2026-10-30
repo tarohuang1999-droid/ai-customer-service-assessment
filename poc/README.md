@@ -62,7 +62,7 @@ JEV_API_KEY=... uv run python triage.py --model jev
 | --- | --- |
 | `triage_result.csv` | 48 筆，依佇列排序：`queue_rank, ticket_id, category, sub_category, route, confidence, urgency, impact, reason_code, reason, model` |
 | `review.html` | 執行摘要（類別分佈、需人工比例、急迫度與影響程度分佈）、資料發現、評估結果、依佇列排序的逐筆檢視 |
-| `run.log` | 每筆的模型輸入、3 題的機率輸出、`reason`；模型錯誤以 `[ERROR]` 記錄題目、重試次數與錯誤類型 |
+| `run.log` | 每筆的模型輸入與 3 題的機率輸出；模型錯誤以 `[ERROR]` 記錄題目、重試次數與錯誤類型。判斷理由不寫進 log，在 `triage_result.csv` 與 `review.html` 查看 |
 
 auto 白名單與門檻都在 `config/routing.toml`，不需要改程式。
 

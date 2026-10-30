@@ -131,7 +131,7 @@ tr.mismatch td { background: var(--diff); }
       <span class="count" id="count"></span>
     </div>
     <table>
-      <thead><tr><th>排序</th><th>ID</th><th>主旨 / 內文</th><th>分類</th><th>route</th><th>急迫 / 影響</th><th>標準答案</th><th>reason</th></tr></thead>
+      <thead><tr><th>排序</th><th>ID</th><th>主旨 / 內文</th><th>分類</th><th>route</th><th>急迫 / 影響</th><th>標準答案</th><th>判斷理由</th></tr></thead>
       <tbody id="rows"></tbody>
     </table>
   </section>
@@ -163,7 +163,7 @@ function render() {
     <td>${badge("r-" + d.route, d.route)}</td>
     <td class="muted">${d.urg} / ${d.imp}</td>
     <td>${goldCell(d)}</td>
-    <td class="muted">${esc(d.reason)}</td></tr>`).join("");
+    <td><span class="cat">${esc(d.code)}</span><div class="muted">${esc(d.reason)}</div></td></tr>`).join("");
 }
 ["q", "f-route", "f-match"].forEach(id => $(id).addEventListener("input", render));
 render();

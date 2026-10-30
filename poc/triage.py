@@ -56,7 +56,7 @@ def run(input_csv: Path, output_dir: Path, config_dir: Path, model_name: str, en
             if d.reason_code == "model_error":
                 log(f"[ERROR] {t.ticket_id} {d.reason}")
             log(f"[{i:02d}/{len(tickets)}] {t.ticket_id} {d.total_ms:.0f}ms -> {d.category}/{d.sub_category} "
-                f"route={d.route} urgency={d.urgency} impact={d.impact} | {d.reason}")
+                f"route={d.route} urgency={d.urgency} impact={d.impact}")
             log(f"  [INPUT] {json.dumps(d.model_input, ensure_ascii=False)}", console=False)
             for tr in d.model_traces:
                 log(f"  [MODEL_IO] stage={tr['stage']} ms={tr['ms']} input_tokens={tr['input_tokens']} "
