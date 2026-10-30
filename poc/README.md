@@ -10,14 +10,35 @@
 
 ## 1. Prerequisites
 
-| 工具 | 版本 | 用途 | 安裝 |
-| --- | --- | --- | --- |
-| Python | ≥ 3.13（開發與測試環境；程式只用標準庫） | 執行 pipeline | `uv python install 3.13` |
-| uv | ≥ 0.5 | 建立環境與執行 | macOS：`brew install uv`；其他：`curl -LsSf https://astral.sh/uv/install.sh \| sh` |
-| llama.cpp | ≥ v0.6.0（內含 Clef 支援與 `/v1/systemone` API） | 地端執行決策模型（模式 B） | macOS：`brew install llama.cpp`；或從 [releases](https://github.com/ggml-org/llama.cpp/releases) 下載 |
-| Clef-flash GGUF | 9B，本 PoC 使用 `Q8_0` 量化 | 決策模型權重 | 從 Hugging Face 下載 Clef-flash 的 GGUF 檔 |
+| 工具 | 版本 | 用途 |
+| --- | --- | --- |
+| Python | ≥ 3.13（開發與測試環境；程式只用標準庫） | 執行 pipeline |
+| uv | ≥ 0.5 | 建立環境與執行 |
+| llama.cpp | ≥ v0.6.0（內含 Clef 支援，PR #29831，與 `/v1/systemone` API） | 地端執行決策模型 |
+| Clef-flash GGUF | [`ggml-org/Clef-Flash-GGUF`](https://huggingface.co/ggml-org/Clef-Flash-GGUF)，本 PoC 使用 `Q8_0`（約 9.7 GB）；記憶體較小可用 `Q4_K_M`（約 6.5 GB） | 決策模型權重 |
 
-只想在乾淨環境確認流程可以跑，裝 Python 與 uv 即可（模式 A）。
+### 1.1 安裝
+
+```bash
+# Python 與 uv
+brew install uv                      # 其他平台：curl -LsSf https://astral.sh/uv/install.sh | sh
+uv python install 3.13
+
+# llama.cpp（或從 https://github.com/ggml-org/llama.cpp/releases 下載預先編譯的版本）
+brew install llama.cpp
+llama-server --version               # 確認 ≥ v0.6.0
+```
+
+### 1.2 下載模型並啟動決策模型服務
+
+`-hf` 會在第一次啟動時自動從 Hugging Face 下載模型並快取，之後直接使用快取：
+
+```bash
+llama-server -hf ggml-org/Clef-Flash-GGUF:Q8_0 -c 4096 -b 4096 -ub 4096 --port 8090
+```
+
+- `-ub 4096`：分類那一題會把 18 個選項的描述和工單內文一起送出。內文上限 1,000 字（`routing.toml` 的 `max_body_chars`）時，單次請求可能超過 2,000 tokens；llama.cpp 的 physical batch 預設只有 512，太小會回傳 HTTP 500。
+- 也可以先下載檔案再指定路徑：`hf download ggml-org/Clef-Flash-GGUF --include "*Q8_0*"`，再用 `llama-server -m <檔案路徑> ...` 啟動。
 
 ---
 
@@ -26,15 +47,10 @@
 ```bash
 cd poc
 
-# A. 離線 mock 基準（不需模型服務）
-uv run python triage.py --model mock
+# 地端決策模型（預設）：先依 1.2 啟動 llama-server
+uv run python triage.py --endpoint http://localhost:8090/v1/systemone
 
-# B. 地端決策模型：llama.cpp + Clef-flash
-#    單次請求約 800–950 tokens，需加 -ub 2048（physical batch 預設 512 會回傳 HTTP 500）
-llama-server -m /path/to/Clef-Flash-Q8_0.gguf -c 4096 -b 2048 -ub 2048 --port 8090
-uv run python triage.py --model llamacpp --endpoint http://localhost:8090/v1/systemone
-
-# C. 遠端 Jev API（僅限虛構資料；真實工單須經法務核准供應商）
+# 遠端 Jev API（僅限虛構資料；真實工單須經法務核准供應商）
 JEV_API_KEY=... uv run python triage.py --model jev
 
 # 加上 --serve，執行後會在瀏覽器開啟 review.html
@@ -44,7 +60,7 @@ JEV_API_KEY=... uv run python triage.py --model jev
 
 | 檔案 | 內容 |
 | --- | --- |
-| `triage_result.csv` | 48 筆，依佇列排序：`queue_rank, ticket_id, category, sub_category, route, confidence, urgency, impact, reason, model` |
+| `triage_result.csv` | 48 筆，依佇列排序：`queue_rank, ticket_id, category, sub_category, route, confidence, urgency, impact, reason_code, reason, model` |
 | `review.html` | 執行摘要（類別分佈、需人工比例、急迫度與影響程度分佈）、資料發現、評估結果、依佇列排序的逐筆檢視 |
 | `run.log` | 每筆的模型輸入、3 題的機率輸出、`reason`；模型錯誤以 `[ERROR]` 記錄題目、重試次數與錯誤類型 |
 
@@ -72,13 +88,13 @@ flowchart LR
 | 模組 | 職責 | 輸入 → 輸出 |
 | --- | --- | --- |
 | `triage.py` | CLI 入口：載入設定與工單，逐筆呼叫 router，排序佇列，寫出結果、log 與報表 | CSV、設定檔 → `output/result-<時間>/` |
-| `pipeline/preprocess.py` | 讀取 CSV 前 6 欄並驗證表頭、略過 ticket_id 空白的列、去除前後空白、移除 HTML 標籤；組成模型輸入（主旨＋內文，內文超過 300 字時保留開頭 65% 與結尾 35%） | CSV → `Ticket` 清單 |
-| `pipeline/models.py` | 呼叫決策模型 `/v1/systemone`，每筆問 3 題；失敗重試 1 次，仍失敗就回報錯誤。另有離線 `mock` | 模型輸入 → 3 題的選項、機率、信心 |
+| `pipeline/preprocess.py` | 讀取 CSV 前 6 欄並驗證表頭、略過 ticket_id 空白的列、去除前後空白、移除 HTML 標籤；組成模型輸入（主旨＋內文，內文超過 1,000 字時保留開頭 65% 與結尾 35%） | CSV → `Ticket` 清單 |
+| `pipeline/models.py` | 呼叫決策模型 `/v1/systemone`，每筆問 3 題；失敗重試 1 次，仍失敗就回報錯誤 | 模型輸入 → 3 題的選項、機率、信心 |
 | `pipeline/router.py` | 依 `routing.toml` 的條件規則決定 route（第 5 節），並依急迫度、影響程度排序佇列 | 模型結果 → `TriageDecision` |
 | `evaluate.py` | 比對 `expected_labels.csv`，計算準確率、False Auto、信心分箱，統計資料發現，產生 `review.html` | 結果、標準答案 → 評估數字與報表 |
 | `review_template.html` | `review.html` 的版面（HTML／CSS／JS），`evaluate.py` 把資料填入 | — |
 | `config/labels.toml` | 3 題選擇題的題目與選項定義。描述統一寫成「客戶狀態／想要／主題」，不寫「不含：某某」這類排除句，也不含任何樣本內容 | — |
-| `config/routing.toml` | 條件規則的 auto 白名單、分類信心門檻、排序用的程度信心門檻、內文長度上限 | — |
+| `config/routing.toml` | 條件規則的 auto 白名單、分類信心門檻、排序用的程度信心門檻、內文長度上限，以及各判斷結果的原因說明（`[reasons]`） | — |
 
 ---
 
@@ -126,7 +142,18 @@ auto 有兩種：草擬（客服確認後送出），以及非客服信件的自
 | 申請改期 | `order_change/booking_change`，信心 0.93 | 不在白名單 → **human** |
 | 詢問郵輪艙房能否指定樓層 | `product/product_info`，信心 0.41 | 信心 < 0.50 → **`other/unclear`、human** |
 
-`reason` 會寫出判斷依據，例如 `分類信心 0.76；急迫度 high 不在 auto 條件`。
+每筆輸出一個 `reason_code`，說明文字定義在 `routing.toml` 的 `[reasons]`，可以直接修改：
+
+| reason_code | route | 意思 |
+| --- | --- | --- |
+| `auto_ok` | auto | 白名單細項，且急迫度、影響程度都在允許範圍 |
+| `not_in_whitelist` | human | 細項需要人處理 |
+| `urgency_high` | human | 急迫度 high |
+| `impact_high` | human | 影響程度 high |
+| `low_confidence` | human | 分類信心 < 0.50，歸為 `other/unclear` |
+| `model_error` | human | 模型逾時或錯誤 |
+
+`reason` 欄是「分類信心＋說明」，例如 `分類信心 0.76；急迫度 high，需要人處理`。
 
 ---
 
@@ -188,6 +215,39 @@ auto 有兩種：草擬（客服確認後送出），以及非客服信件的自
 
 代價是信心是否可靠需要驗證：`review.html` 的「分類信心分箱」比較各信心區間的準確率。
 
+**API 範例**：`/v1/systemone` 一次請求可以帶多個問題，每題給出選項與說明；回應是各選項的機率與信心，`output_tokens` 為 0。
+
+```bash
+curl -X POST http://localhost:8090/v1/systemone \
+  -H "Content-Type: application/json" \
+  -d '{
+    "state": "The user is asking for an immediate refund because their package arrived completely broken.",
+    "questions": {
+      "is_urgent": { "type": "noul", "instructions": "Is this support request high urgency?" },
+      "department": {
+        "type": "choice",
+        "instructions": "Which department should handle this ticket?",
+        "criteria": {
+          "billing": "Handles charges, invoices, and payment issues",
+          "returns": "Handles broken items, replacements, and refunds",
+          "technical_support": "Handles software or product usage bugs"
+        }
+      }
+    }
+  }'
+```
+
+```json
+{"answers": {
+   "is_urgent":  {"type": "noul", "noul": 0.925},
+   "department": {"type": "choice", "choice": "returns",
+                  "probabilities": {"billing": 0.004, "returns": 0.993, "technical_support": 0.003},
+                  "confidence": 0.990}},
+ "usage": {"input_tokens": 261, "output_tokens": 0}}
+```
+
+本 PoC 每筆工單送 3 次請求，各帶一題（細項分類、急迫度、影響程度），題目定義在 `config/labels.toml`。
+
 **選項描述的寫法**：實測發現，在描述裡寫「不含：某某」反而會讓模型把「某某」當成這個選項的特徵，信心因此下降。所以 `labels.toml` 的描述不寫「不含：某某」這類排除句，並統一用「客戶狀態／想要／主題」三段，讓相鄰類別的差異落在這三個維度上（例如「已有訂單＋查詢」和「已有訂單＋要求修改」）。類別之間的邊界寫在 spec，作為人工標註的依據。
 
 ---
@@ -227,7 +287,6 @@ auto 有兩種：草擬（客服確認後送出），以及非客服信件的自
 
 **限制**：這 48 筆同時是設計類別時參考的資料，準確率只代表開發集。為了避免「看答案」，`labels.toml` 只寫通用定義，不含任何樣本內容；正式驗收仍需 50–100 筆未參與設計的歷史工單（answers.md Q2-4）。
 
-`mock` 是用通用詞庫打分數的離線基準，只用來確認流程在乾淨環境可以執行，準確率明顯低於決策模型，也會出現 False Auto。
 
 ---
 
@@ -247,7 +306,7 @@ auto 有兩種：草擬（客服確認後送出），以及非客服信件的自
 - 急迫度依賴信件裡寫的日期；沒寫日期但即將出發的工單，要等串接訂單 API 才能精準判斷。
 - 一封信有多個訴求時只取一個細項（風險最高者），其他訴求留給草擬階段的摘要。
 - 樣本只有 48 筆，部分細項只有 1–2 筆，準確率與門檻的統計意義有限。
-- 每筆呼叫模型 3 次，平均約 7–8 秒；以每日 350–700 件計，循序處理仍在可接受範圍，量大時可平行處理。
+- 每筆呼叫模型 3 次，平均約 8–9 秒；以每日 350–700 件計，循序處理仍在可接受範圍，量大時可平行處理。
 
 ---
 
@@ -270,11 +329,11 @@ poc/
 ├── review_template.html   # review.html 的版面
 ├── pipeline/
 │   ├── preprocess.py      # 讀前 6 欄、去空白、移除 HTML 標籤；組成模型輸入
-│   ├── models.py          # 決策模型 client（llama.cpp／Jev）與 mock
+│   ├── models.py          # 決策模型 client（llama.cpp／Jev）
 │   └── router.py          # 依條件規則決定 route、排序佇列
 ├── config/
 │   ├── labels.toml        # 3 題選擇題的選項定義
-│   └── routing.toml       # auto 白名單、分類門檻、排序門檻
+│   └── routing.toml       # auto 白名單、門檻、原因說明
 ├── data/
 │   ├── sample_tickets.csv
 │   └── expected_labels.csv
