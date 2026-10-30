@@ -317,3 +317,18 @@ uv run python triage.py --model llamacpp --endpoint http://localhost:8090/v1/sys
 - 急迫度改為只看時間點（3 天內、3 天到 2 週、沒有近期日期），影響程度改為只看後果（金錢損失或爭議、需要修改但沒有爭議、只需資訊或轉交）。
 - 待驗證：作者用 Clef 分別以 `--routing-mode rule` 與 `--routing-mode risk` 實跑比較。
 
+---
+
+## 11. 追加：Clef 實跑後的修正（2026-10-31，`result-20261031_014735`，條件規則）
+
+實跑結果：主類別 95.8%、細項 93.8%（E1 前為 89.6%）、route 91.7%、**False Auto 0**。分類題最長 1,274 tokens。
+
+| 工單 | 問題 | 修正 |
+| --- | --- | --- |
+| TK-1008 廣告 | 規則寫錯：`other/irrelevant` 也套用了程度條件；模型被「限時、立即」誤導，判成急迫度 high | `other/irrelevant` 不論程度一律 auto（歸檔） |
+| TK-1045 加購行李 | 標準答案錯：這筆是詢問資訊；`order_status` 和 `product_info` 都寫了加購價格，兩者重疊 | 標準答案改為 `product/product_info`；加購價格與航空公司行李、座位規定只寫在 `product_info` |
+| TK-1001 未收到確認信 | 描述問題：`document` 寫了「確認信」，把「想確認訂單是否成立」拉過去（0.68 對 0.24） | `order_status` 改成「想知道訂單目前的狀態」，`document` 改成「想拿到文件本身」。不調門檻：這筆的 route 已經正確，調高門檻只會讓它變成 False Human |
+| TK-1024 電話打不通 | 描述問題：沒有任何日期，卻以 0.70 的信心判成急迫度 high | 急迫度 high 改為「信件明確寫出」日期或已在旅途中；low 補上「抱怨或催促回覆」 |
+
+用這次的原始輸出重放（只反映規則的修正，描述的修正要重跑 Clef）：條件規則 route 45/48、False Auto 0、False Human 3；風險分數 route 44/48、False Auto 0、False Human 4。
+

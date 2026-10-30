@@ -9,7 +9,7 @@ instructions = "根據客服工單的主旨與內文，選出客戶主要訴求�
 
 # product：不需訂單資料即可回答
 [classification.options."product/product_info"]
-description = "客戶狀態：尚未下單或一般詢問。想要：產品資訊。主題：行程或商品的內容、費用包含的項目、計價方式、票券的兌換與使用方式、座位或房型的選擇規則。可用公開的產品資料回答。"
+description = "客戶狀態：尚未下單、已下單或一般詢問皆可。想要：產品與價格資訊。主題：行程或商品的內容、費用包含的項目、計價方式、加購項目的價格與購買期限、航空公司的行李與座位規定、票券的兌換與使用方式、房型的選擇規則。可用公開的產品資料回答。"
 
 [classification.options."product/travel_rule"]
 description = "客戶狀態：出發前。想要：旅遊相關規定。主題：證照效期、簽證與入境規定、遇到天候或不可抗力時是否出團以及如何退費的通則。可用公開的規定回答。"
@@ -22,13 +22,13 @@ description = "客戶狀態：旅客，尚未成行。想要：特別安排或�
 
 # order_inquiry：需唯讀查詢訂單或會員資料
 [classification.options."order_inquiry/order_status"]
-description = "客戶狀態：已有訂單。想要：查詢訂單資訊。主題：訂單是否成立、行前通知或行程表何時寄出、已訂行程可加購的項目、價格與購買期限。可用訂單資料回答。"
+description = "客戶狀態：已有訂單。想要：知道訂單目前的狀態。主題：訂單是否成立、付款是否完成、行前通知或行程表何時寄出。可用訂單資料回答。"
 
 [classification.options."order_inquiry/refund_status"]
 description = "客戶狀態：已申請退款。想要：查詢退款進度。主題：退款處理到哪個階段、預計何時入帳、退回哪個帳戶或信用卡。"
 
 [classification.options."order_inquiry/document"]
-description = "客戶狀態：已有訂單。想要：取得文件。主題：補寄訂單確認信、電子憑證或票券檔案，開立新的收據或證明文件。"
+description = "客戶狀態：已有訂單，且知道訂單已成立。想要：拿到文件本身。主題：請客服重新寄送電子憑證、票券檔案或確認信，開立新的收據或證明文件。"
 
 [classification.options."order_inquiry/member_points"]
 description = "客戶狀態：會員。想要：點數資訊。主題：點數餘額、每筆訂單可折抵的上限、點數的取得方式與到期規則。"
@@ -72,13 +72,13 @@ description = "客戶狀態：不明。內容：只有一兩句話，沒有說�
 instructions = "依信件中提到的出發或使用日期，以及客戶目前是否已在旅途中，判斷事情會在多久之後發生。"
 
 [urgency_level.options.high]
-description = "事情在 3 天內發生：出發或使用日期是今天、明天或後天，或客戶人已在旅途中。"
+description = "信件明確寫出出發或使用日期是今天、明天或後天，或寫出客戶人已在旅途中。"
 
 [urgency_level.options.medium]
 description = "事情在 3 天到 2 週之間發生：出發或使用日期在這段期間，或客戶提到幾天內要完成的期限，例如付款或報帳。"
 
 [urgency_level.options.low]
-description = "信件沒有提到近期的日期：一般詢問、還沒決定行程、出發日在 2 週以後、事後反映、與行程無關的信件。"
+description = "信件沒有提到近期的出發或使用日期：一般詢問、還沒決定行程、出發日在 2 週以後、事後反映、抱怨或催促回覆、與行程無關的信件。"
 
 [impact_level]
 instructions = "依這件事對客戶與公司造成的後果，判斷影響程度。"

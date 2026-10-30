@@ -7,6 +7,7 @@ max_body_chars = 300             # 送入模型的內文長度上限（保留開
 
 # ── mode = "rule"：條件規則 ─────────────────────────────────────────
 # 只有列在這裡的細項，且急迫度、影響程度都在允許清單內，才是 auto；其餘一律 human。
+# other/irrelevant（廣告、測試單、自動回覆）客服不處理，不論程度一律 auto 歸檔。
 [rule.auto]
 "product/product_info"        = { urgency = ["low", "medium"], impact = ["low", "medium"] }
 "product/travel_rule"         = { urgency = ["low", "medium"], impact = ["low", "medium"] }
@@ -17,7 +18,7 @@ max_body_chars = 300             # 送入模型的內文長度上限（保留開
 "order_inquiry/member_points" = { urgency = ["low", "medium"], impact = ["low", "medium"] }
 "complaint/service_complaint" = { urgency = ["low", "medium"], impact = ["low", "medium"] }
 "other/business"              = { urgency = ["low", "medium"], impact = ["low", "medium"] }
-"other/irrelevant"            = { urgency = ["low", "medium"], impact = ["low", "medium"] }
+"other/irrelevant"            = { urgency = ["low", "medium", "high"], impact = ["low", "medium", "high"] }  # 廣告、測試單：不論程度一律歸檔
 
 # ── mode = "risk"：風險分數（比較用）────────────────────────────────
 # 細項先依 [route] 取得預設 route；風險分數 ≥ threshold 時改為 human。

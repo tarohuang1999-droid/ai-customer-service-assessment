@@ -43,7 +43,7 @@ TK-1041,other,irrelevant,auto
 TK-1042,order_inquiry,document,human
 TK-1043,order_change,booking_change,human
 TK-1044,complaint,compensation_claim,human
-TK-1045,order_inquiry,order_status,auto
+TK-1045,product,product_info,auto
 TK-1046,order_inquiry,document,auto
 TK-1047,other,business,auto
 TK-1048,product,cancel_policy,auto
