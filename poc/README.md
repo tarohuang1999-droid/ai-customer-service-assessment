@@ -94,7 +94,7 @@ flowchart LR
 | `evaluate.py` | 比對 `expected_labels.csv`，計算準確率、False Auto、信心分箱，統計資料發現，產生 `review.html` | 結果、標準答案 → 評估數字與報表 |
 | `review_template.html` | `review.html` 的版面（HTML／CSS／JS），`evaluate.py` 把資料填入 | — |
 | `config/labels.toml` | 3 題選擇題的題目與選項定義。描述統一寫成「客戶狀態／想要／主題」，不寫「不含：某某」這類排除句，也不含任何樣本內容 | — |
-| `config/routing.toml` | 條件規則的 auto 白名單、分類信心門檻、排序用的程度信心門檻、內文長度上限，以及各判斷結果的原因說明（`[reasons]`） | — |
+| `config/routing.toml` | 條件規則的 auto 白名單、分類信心門檻、排序用的程度信心門檻、內文長度上限；每個細項的業務理由（`[auto]`、`[human]`）與其他判斷原因（`[reasons]`） | — |
 
 ---
 
@@ -142,18 +142,22 @@ auto 有兩種：草擬（客服確認後送出），以及非客服信件的自
 | 申請改期 | `order_change/booking_change`，信心 0.93 | 不在白名單 → **human** |
 | 詢問郵輪艙房能否指定樓層 | `product/product_info`，信心 0.41 | 信心 < 0.50 → **`other/unclear`、human** |
 
-每筆輸出一個 `reason_code`，說明文字定義在 `routing.toml` 的 `[reasons]`，可以直接修改：
+每筆輸出 `reason_code` 與 `reason`。`reason` 寫的是**業務上的理由**，定義在 `routing.toml`，可以直接修改：
 
-| reason_code | route | 意思 |
+- 白名單細項（`[auto]`）各自寫明為什麼可以交給 AI，例如 `product/product_info`：「一般產品資訊，知識庫查得到答案，AI 產生附來源的草稿」。
+- 需要人處理的細項（`[human]`）各自寫明為什麼 AI 無法決定回覆內容，例如 `order_change/booking_change`：「需要在訂單系統改單或退費，涉及費用調整，由客服處理」。
+- 與細項無關的判斷（`[reasons]`）：急迫度 high、影響程度 high、分類信心不足、模型異常。
+
+| reason_code | route | 原因來源 |
 | --- | --- | --- |
-| `auto_ok` | auto | 白名單細項，且急迫度、影響程度都在允許範圍 |
-| `not_in_whitelist` | human | 細項需要人處理 |
-| `urgency_high` | human | 急迫度 high |
-| `impact_high` | human | 影響程度 high |
-| `low_confidence` | human | 分類信心 < 0.50，歸為 `other/unclear` |
-| `model_error` | human | 模型逾時或錯誤 |
+| `auto_ok` | auto | `[auto]` 該細項的 `reason` |
+| `not_in_whitelist` | human | `[human]` 該細項的 `reason` |
+| `urgency_high` | human | `[reasons].urgency_high` |
+| `impact_high` | human | `[reasons].impact_high` |
+| `low_confidence` | human | `[reasons].low_confidence` |
+| `model_error` | human | `[reasons].model_error`，附上錯誤細節 |
 
-`reason` 欄是「分類信心＋說明」，例如 `分類信心 0.76；急迫度 high，需要人處理`。
+`reason` 欄為「分類信心＋原因」，例如 `分類信心 0.95；一般產品資訊，知識庫查得到答案，AI 產生附來源的草稿`。
 
 ---
 
@@ -333,7 +337,7 @@ poc/
 │   └── router.py          # 依條件規則決定 route、排序佇列
 ├── config/
 │   ├── labels.toml        # 3 題選擇題的選項定義
-│   └── routing.toml       # auto 白名單、門檻、原因說明
+│   └── routing.toml       # auto 白名單與理由、human 細項理由、門檻
 ├── data/
 │   ├── sample_tickets.csv
 │   └── expected_labels.csv

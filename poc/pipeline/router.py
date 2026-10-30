@@ -42,10 +42,11 @@ def triage_one(ticket: Ticket, model: DecisionModel, labels: dict[str, Any], rou
     key = f"{r.category}/{r.sub_category}"
     texts = routing.get("reasons", {})
 
-    def done(category: str, sub_category: str, route: str, code: str, detail: str = "") -> TriageDecision:
-        """reason_code 對應 routing.toml [reasons] 的說明；reason = 分類信心＋說明（＋細節）。"""
-        text = texts.get(code, code).format(key=key, urgency=r.urgent_level, impact=r.impact_level)
-        reason = f"分類信心 {r.confidence:.2f}；{text}" + (f"：{detail}" if detail else "")
+    def done(category: str, sub_category: str, route: str, code: str, text: str = "", detail: str = "") -> TriageDecision:
+        """reason = 分類信心＋原因說明（＋細節）。細項的原因寫在 [auto]／[human]，其餘寫在 [reasons]。"""
+        text = text or texts.get(code, code).format(key=key)
+        prefix = "" if code == "model_error" else f"分類信心 {r.confidence:.2f}；"
+        reason = prefix + text + (f"：{detail}" if detail else "")
         return TriageDecision(
             ticket_id=ticket.ticket_id, created_at=ticket.created_at,
             category=category, sub_category=sub_category, route=route, confidence=r.confidence,
@@ -56,7 +57,7 @@ def triage_one(ticket: Ticket, model: DecisionModel, labels: dict[str, Any], rou
 
     # 模型異常：fail-closed，一律轉人工；錯誤細節由 triage.py 寫入 log
     if r.error:
-        return done(*UNCLEAR, "human", "model_error", r.error)
+        return done(*UNCLEAR, "human", "model_error", detail=r.error)
 
     # 1. 分類信心不足：系統判斷不了，歸 other/unclear
     if r.confidence < float(routing.get("classification_threshold", 0.5)):
@@ -65,12 +66,13 @@ def triage_one(ticket: Ticket, model: DecisionModel, labels: dict[str, Any], rou
     # 2. 條件規則：細項在 auto 白名單內，且急迫度、影響程度都在允許清單內 -> auto；其餘一律 human
     cond = routing["auto"].get(key)
     if cond is None:
-        return done(r.category, r.sub_category, "human", "not_in_whitelist")
+        why = routing.get("human", {}).get(key, {}).get("reason", "")
+        return done(r.category, r.sub_category, "human", "not_in_whitelist", why)
     if r.urgent_level not in cond["urgency"]:
         return done(r.category, r.sub_category, "human", "urgency_high")
     if r.impact_level not in cond["impact"]:
         return done(r.category, r.sub_category, "human", "impact_high")
-    return done(r.category, r.sub_category, "auto", "auto_ok")
+    return done(r.category, r.sub_category, "auto", "auto_ok", cond.get("reason", ""))
 
 
 def assign_queue_rank(decisions: list[TriageDecision], level_conf_threshold: float = 0.70) -> list[TriageDecision]:

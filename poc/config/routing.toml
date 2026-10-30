@@ -2,32 +2,38 @@
 
 classification_threshold = 0.50  # 細項分類信心低於此值 -> other/unclear（human）
 level_conf_threshold = 0.70      # 排序時，急迫度、影響程度的信心低於此值視為 low
-max_body_chars = 1000             # 送入模型的內文長度上限（保留開頭 65% 與結尾 35%）
+max_body_chars = 1000            # 送入模型的內文長度上限（保留開頭 65% 與結尾 35%）
 
-# 條件規則：auto 白名單
+# ── 條件規則：auto 白名單 ──────────────────────────────────────────
 # 只有列在這裡的細項，且急迫度、影響程度都在允許清單內，才是 auto；其餘一律 human。
-# 白名單外的細項（custom_request、booking_change、data_correction、account_access、
-# checkout_error、disruption、compensation_claim、other/unclear）一律 human。
+# reason：為什麼這類工單可以交給 AI，會寫入 triage_result.csv 的 reason 欄。
 [auto]
-"product/product_info"        = { urgency = ["low", "medium"], impact = ["low", "medium"] }
-"product/travel_rule"         = { urgency = ["low", "medium"], impact = ["low", "medium"] }
-"product/cancel_policy"       = { urgency = ["low", "medium"], impact = ["low", "medium"] }
-"order_inquiry/order_status"  = { urgency = ["low", "medium"], impact = ["low", "medium"] }
-"order_inquiry/refund_status" = { urgency = ["low", "medium"], impact = ["low", "medium"] }
-"order_inquiry/document"      = { urgency = ["low", "medium"], impact = ["low", "medium"] }
-"order_inquiry/member_points" = { urgency = ["low", "medium"], impact = ["low", "medium"] }
-"complaint/service_complaint" = { urgency = ["low", "medium"], impact = ["low", "medium"] }
-"other/business"              = { urgency = ["low", "medium"], impact = ["low", "medium"] }
-# 廣告、測試單、自動回覆：客服不處理，不論程度一律歸檔
-"other/irrelevant"            = { urgency = ["low", "medium", "high"], impact = ["low", "medium", "high"] }
+"product/product_info"        = { urgency = ["low", "medium"], impact = ["low", "medium"], reason = "一般產品資訊，知識庫查得到答案，AI 產生附來源的草稿" }
+"product/travel_rule"         = { urgency = ["low", "medium"], impact = ["low", "medium"], reason = "證照、簽證與天候通則有公開規定可查，AI 產生附來源的草稿" }
+"product/cancel_policy"       = { urgency = ["low", "medium"], impact = ["low", "medium"], reason = "退改手續費依定型化契約，條文固定，AI 產生附條文的草稿" }
+"order_inquiry/order_status"  = { urgency = ["low", "medium"], impact = ["low", "medium"], reason = "只需唯讀查詢訂單狀態，AI 查詢後產生草稿" }
+"order_inquiry/refund_status" = { urgency = ["low", "medium"], impact = ["low", "medium"], reason = "只需唯讀查詢退款進度，AI 查詢後產生草稿" }
+"order_inquiry/document"      = { urgency = ["low", "medium"], impact = ["low", "medium"], reason = "補寄憑證或開立收據屬標準作業，AI 產生草稿並附上文件" }
+"order_inquiry/member_points" = { urgency = ["low", "medium"], impact = ["low", "medium"], reason = "點數餘額與折抵規則可唯讀查詢，AI 查詢後產生草稿" }
+"complaint/service_complaint" = { urgency = ["low", "medium"], impact = ["low", "medium"], reason = "抱怨但未要求補償，AI 草擬致歉與說明，客服確認語氣後送出" }
+"other/business"              = { urgency = ["low", "medium"], impact = ["low", "medium"], reason = "非客服的業務往來，自動轉交對應部門" }
+"other/irrelevant"            = { urgency = ["low", "medium", "high"], impact = ["low", "medium", "high"], reason = "廣告、測試單或自動回覆，客服不需處理，直接歸檔" }
 
-# 判斷原因：router 依判斷結果帶入對應的 reason_code 與說明，輸出到 triage_result.csv 與 log。
-# 說明可直接修改，不需要改程式；{key}、{urgency}、{impact} 會代入實際值。
+# ── 需要人處理的細項：為什麼 AI 無法決定回覆內容 ──────────────────
+[human]
+"product/custom_request"       = { reason = "需要另外報價或向供應商個案確認，AI 無法決定回覆內容" }
+"order_change/booking_change"  = { reason = "需要在訂單系統改單或退費，涉及費用調整，由客服處理" }
+"order_change/data_correction" = { reason = "需要更正旅客資料或已開立的發票，由客服在既有系統處理" }
+"system_issue/account_access"  = { reason = "帳號問題需要查證並在系統操作，由客服處理" }
+"system_issue/checkout_error"  = { reason = "扣款或金額異常需要查帳確認，由客服處理" }
+"trip_incident/disruption"     = { reason = "客戶已在旅途中，需要即時協助，由客服處理" }
+"complaint/compensation_claim" = { reason = "涉及賠償與公司承諾，需要由客服判斷" }
+"other/unclear"                = { reason = "看不出要處理什麼，交由客服判斷" }
+
+# ── 與細項無關的判斷原因 ───────────────────────────────────────────
+# {key} 會代入模型原判的細項
 [reasons]
-auto_ok          = "符合 auto 條件"
-not_in_whitelist = "{key} 需要人處理（不在 auto 白名單）"
-urgency_high     = "急迫度 {urgency}，需要人處理"
-impact_high      = "影響程度 {impact}，需要人處理"
-low_confidence   = "低於門檻，歸為 other/unclear（模型原判 {key}）"
-model_error      = "模型異常轉人工"
-
+urgency_high   = "急迫度 high：72 小時內要出發或使用，或客戶已在旅途中，由客服優先處理"
+impact_high    = "影響程度 high：涉及金錢爭議、對外申訴或人身安全，由客服處理"
+low_confidence = "低於門檻，系統無法確定類別（模型原判 {key}），交由客服判斷"
+model_error    = "模型異常，交由客服處理"
