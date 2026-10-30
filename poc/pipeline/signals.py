@@ -49,7 +49,7 @@ def _cn_number(token: str) -> int:
 
 
 def parse_amounts(text: str) -> list[int]:
-    """Extract money amounts: 186,000 元 / 4.5 萬 / 三萬二 / 3 萬 2 千. Skips 萬粉, 萬人 等非金額用法."""
+    """Extract money amounts: 120,000 元 / 4.5 萬 / 三萬二 / 3 萬 2 千. Skips 萬粉, 萬人 等非金額用法."""
     amounts: list[int] = []
     for m in re.finditer(r"(\d{1,3}(?:,\d{3})+)(?!\d)", text):
         amounts.append(int(m.group(1).replace(",", "")))
