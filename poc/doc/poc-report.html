@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>工單分流 PoC｜Take-home 作品說明</title>
+<style>
+  :root {
+    --primary: #1D4E89; --primary-tint: #EEF3FA;
+    --accent: #E07A3F;  --accent-tint: #FDF1EA;
+    --ink: #1F2933; --muted: #6B7785; --line: #E4E8EE; --bg: #FFFFFF;
+    --good: #2E7D5B; --bad: #B4443A;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
+    font-family: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif; }
+  .deck { position: relative; width: 100vw; height: 100vh; overflow: hidden; }
+  .slide { position: absolute; inset: 0; padding: 6vh 6vw 9vh; display: none;
+    flex-direction: column; overflow-y: auto; background: var(--bg); }
+  .slide.active { display: flex; }
+
+  .kicker { color: var(--accent); font-size: 0.92rem; font-weight: 600; letter-spacing: 0.04em; margin-bottom: 0.3rem; }
+  h1 { font-size: 3.2rem; margin: 0 0 0.6rem; line-height: 1.15; color: var(--primary); }
+  h2 { font-size: 1.85rem; margin: 0 0 1.1rem; color: var(--primary); font-weight: 700; }
+  h3 { font-size: 1.05rem; margin: 0 0 0.45rem; color: var(--primary); font-weight: 700; }
+  p, li { font-size: 1rem; line-height: 1.55; margin: 0; }
+  ul, ol { padding-left: 1.1rem; margin: 0; }
+  li { margin-bottom: 0.3rem; }
+  .sub { color: var(--muted); font-size: 0.95rem; }
+
+  .panel { background: var(--primary-tint); border-radius: 12px; padding: 0.9rem 1.1rem; }
+  .panel.accent { background: var(--accent-tint); }
+  .panel.line { background: #fff; border: 1px solid var(--line); }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.9rem; }
+  .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.8rem; }
+
+  .stat { font-size: 2rem; font-weight: 700; color: var(--primary); line-height: 1.1; }
+  .stat.accent { color: var(--accent); }
+  .stat.good { color: var(--good); }
+  .label { color: var(--muted); font-size: 0.88rem; margin-bottom: 0.3rem; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 0.38rem 0.45rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 0.84rem; background: #FAFBFD; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  table.compact { font-size: 0.82rem; }
+  table.compact th, table.compact td { padding: 0.26rem 0.4rem; }
+
+  .tag { display: inline-block; padding: 0.05rem 0.5rem; border-radius: 999px; font-size: 0.8rem; font-weight: 600; white-space: nowrap; }
+  .tag.a { background: #E3F2EA; color: var(--good); }
+  .tag.h { background: var(--accent-tint); color: #B35A26; }
+
+  code, pre { font-family: ui-monospace, Menlo, monospace; }
+  code { font-size: 0.88em; color: var(--primary); background: var(--primary-tint); padding: 0.03rem 0.28rem; border-radius: 4px; }
+  pre { background: #F6F8FB; border: 1px solid var(--line); border-radius: 10px; padding: 0.8rem 0.95rem; margin: 0;
+    font-size: 0.8rem; line-height: 1.45; color: var(--ink); }
+
+  .chip { display: inline-block; margin: 0 0.35rem 0.4rem 0; padding: 0.22rem 0.6rem; border-radius: 999px;
+    background: var(--primary-tint); color: var(--primary); font-size: 0.86rem; font-weight: 600; }
+  .chip.accent { background: var(--accent-tint); color: #B35A26; }
+  .dl { margin: 0; }
+  .dl dt { font-weight: 700; color: var(--primary); font-size: 0.98rem; margin-top: 0.6rem; }
+  .dl dt:first-child { margin-top: 0; }
+  .dl dd { margin: 0.15rem 0 0; font-size: 0.93rem; line-height: 1.5; color: var(--ink); }
+
+  .note { margin-top: 0.8rem; color: var(--muted); font-size: 0.9rem; }
+  .footer { margin-top: auto; padding-top: 0.6rem; color: var(--muted); font-size: 0.82rem; }
+
+  .nav { position: fixed; bottom: 2vh; right: 3vw; color: var(--muted); font-size: 0.85rem; }
+  .hint { position: fixed; bottom: 2vh; left: 3vw; color: var(--muted); font-size: 0.82rem; }
+  .progress { position: fixed; left: 0; top: 0; height: 3px; background: var(--accent); width: 0; }
+
+  .reveal { opacity: 0; }
+  .cover { justify-content: center; }
+  .cover .bar { width: 64px; height: 6px; background: var(--accent); border-radius: 3px; margin: 1.3rem 0; }
+  .sub-cover { font-size: 1.05rem; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="progress" id="progress"></div>
+<div class="deck" id="deck">
+
+<!-- 00 封面 -->
+<section class="slide cover active">
+  <div class="kicker reveal">Senior Field Deployment Engineer · 面試前作業</div>
+  <h1 class="reveal">工單分流 PoC</h1>
+  <div class="bar reveal"></div>
+  <p class="sub-cover reveal">情境：虛構案例「T 旅遊」的客服工單<br>範圍：Part 3 程式 PoC（分流，不含草擬）</p>
+</section>
+
+<!-- 01 Problem and context -->
+<section class="slide">
+  <div class="kicker reveal">01 · Problem and context</div>
+  <h2 class="reveal">客服每天約 350 件工單，首次回覆要 6 小時</h2>
+  <div class="grid4 reveal">
+    <div class="panel"><div class="label">每日文字工單</div><div class="stat">約 350</div><p class="sub">旺季翻倍</p></div>
+    <div class="panel"><div class="label">客服人力</div><div class="stat">8 位</div><p class="sub">讀信、查系統、回覆</p></div>
+    <div class="panel accent"><div class="label">平均首次回覆</div><div class="stat accent">6 小時</div><p class="sub">旺季常超過 24 小時</p></div>
+    <div class="panel accent"><div class="label">客訴與負評</div><div class="stat accent">增加中</div><p class="sub">管理層要求導入 AI</p></div>
+  </div>
+  <div class="grid2" style="margin-top:1.2rem">
+    <div class="reveal">
+      <h3>四方的限制</h3>
+      <ul>
+        <li>主管：希望 AI 直接回信，人力最好減半</li>
+        <li>資訊部：訂單 API 要審核、QPS 很低；知識文件散落且版本混亂</li>
+        <li>法務：客戶個資不得送到未簽約的外部服務，目前沒有簽約 LLM</li>
+        <li>資深客服：很多信要跨系統查；客人寫的常和真正要的不同</li>
+      </ul>
+    </div>
+    <div class="panel reveal">
+      <h3>要回答的問題</h3>
+      <p>在不讓 AI 直接對客發錯的前提下，能不能先把工單分流，讓人力花在真正需要處理的工單上？</p>
+    </div>
+  </div>
+  <div class="footer">資料與人物皆為虛構</div>
+</section>
+
+<!-- 02 POC 目標 -->
+<section class="slide">
+  <div class="kicker reveal">02 · POC 目標</div>
+  <h2 class="reveal">POC 目標: 工單分流</h2>
+  <div class="grid3 reveal">
+    <div class="panel"><h3>要做</h3><p>每張工單分到 18 個細項之一，標記 auto 或 human，附判斷依據；地端模型，工單不出內網。</p></div>
+    <div class="panel"><h3>不做</h3><p>不生成草稿、不串接系統、不處理退款與簽核、不做個資遮罩（假設全地端）。</p></div>
+    <div class="panel accent"><h3>紅線</h3><div class="stat accent">False Auto = 0</div><p class="sub">應由人處理卻判為 auto 的工單，一件都不能有</p></div>
+  </div>
+  <h3 class="reveal" style="margin-top:1rem">CSV 問題集（節錄 9 筆，共 48 筆）</h3>
+  <div class="reveal">
+  <table class="compact">
+    <tr><th>ID</th><th>主旨</th><th>內文重點</th><th>標準類別</th><th>route</th><th>為什麼這樣判</th></tr>
+    <tr><td>TK-1001</td><td>訂單未收到確認信</td><td>已刷卡，沒收到確認信</td><td>訂單狀態</td><td><span class="tag a">auto</span></td><td>只需唯讀查訂單</td></tr>
+    <tr><td>TK-1003</td><td>東京團費內含項目</td><td>是否含機場稅與小費</td><td>產品資訊</td><td><span class="tag a">auto</span></td><td>公開價目可回答</td></tr>
+    <tr><td>TK-1002</td><td>家人生病想取消行程</td><td>取消北海道團，問退費</td><td>訂單變更</td><td><span class="tag h">human</span></td><td>要改單、涉及費用</td></tr>
+    <tr><td>TK-1013</td><td>疑似重複扣款！</td><td>兩封金額不同的扣款通知</td><td>扣款異常</td><td><span class="tag h">human</span></td><td>要查帳，有爭議風險</td></tr>
+    <tr><td>TK-1011</td><td>導遊態度差，要求處理</td><td>要求道歉、退費，否則公開</td><td>賠償求償</td><td><span class="tag h">human</span></td><td>涉及賠償與公司承諾</td></tr>
+    <tr><td>TK-1021</td><td>明天出發，颱風會不會延期</td><td>明天出發，海上颱風警報</td><td>旅遊規定</td><td><span class="tag h">human</span></td><td>急迫性為高</td></tr>
+    <tr><td>TK-1008</td><td>【限時】體驗金 8888</td><td>博弈平台廣告</td><td>無關信件</td><td><span class="tag a">auto</span></td><td>直接歸檔</td></tr>
+    <tr><td>TK-1017</td><td>Re: 7 月包車報價單</td><td>巴士公司的報價單，請簽回</td><td>廠商來信</td><td><span class="tag a">auto</span></td><td>寄件人是供應商，但內文像客製需求（已知難例）</td></tr>
+    <tr><td>TK-1033</td><td>可以退嗎</td><td>全文只有四個字</td><td>無法判斷</td><td><span class="tag h">human</span></td><td>沒有說明是哪筆訂單</td></tr>
+  </table>
+  </div>
+  <div class="footer">完整 48 筆與標準答案見 data/sample_tickets.csv、expected_labels.csv</div>
+</section>
+
+<!-- 03 工單分流規則 -->
+<section class="slide">
+  <div class="kicker reveal">03 · 工單分流規則</div>
+  <h2 class="reveal">工單分流規則</h2>
+  <div class="grid3">
+    <div class="panel line reveal">
+      <h3>分類</h3>
+      <p class="sub" style="margin-bottom:0.5rem">依客戶主要訴求，分到 7 大類 18 細項</p>
+      <dl class="dl">
+        <dt>產品與規定</dt><dd>產品資訊、旅遊規定、取消規定、客製需求</dd>
+        <dt>訂單查詢</dt><dd>訂單狀態、退款進度、文件補寄、點數查詢</dd>
+        <dt>訂單異動</dt><dd>訂單變更、資料更正</dd>
+        <dt>系統異常</dt><dd>帳號問題、扣款異常</dd>
+        <dt>旅途異常</dt><dd>旅途即時協助</dd>
+        <dt>客訴</dt><dd>服務抱怨、賠償求償</dd>
+        <dt>其他</dt><dd>廠商來信、無關信件、無法判斷</dd>
+      </dl>
+    </div>
+    <div class="panel line reveal">
+      <h3>急迫性</h3>
+      <dl class="dl">
+        <dt><span class="tag h">高</span></dt>
+        <dd>信件寫出出發或使用日期是今天、明天或後天，或客戶已在旅途中。</dd>
+        <dt><span class="tag" style="background:#FFF6DB;color:#8A6A12">中</span></dt>
+        <dd>事情在 3 天到 2 週之間發生，或客戶提到幾天內要完成的期限，例如付款或報帳。</dd>
+        <dt><span class="tag a">低</span></dt>
+        <dd>信件沒有提到近期的出發或使用日期，例如一般詢問、事後反映或催促回覆。</dd>
+      </dl>
+    </div>
+    <div class="panel line reveal">
+      <h3>影響度</h3>
+      <dl class="dl">
+        <dt><span class="tag h">高</span></dt>
+        <dd>已經或可能造成金錢損失或爭議，例如重複扣款、要求賠償；客戶表示要向外申訴或公開；或涉及人身安全。</dd>
+        <dt><span class="tag" style="background:#FFF6DB;color:#8A6A12">中</span></dt>
+        <dd>需要修改訂單、調整費用，或處理帳號與付款問題，雙方對處理方式沒有爭議。</dd>
+        <dt><span class="tag a">低</span></dt>
+        <dd>只需提供資訊或轉交其他部門，訂單與金錢都不需要變動。</dd>
+      </dl>
+    </div>
+  </div>
+  <div class="panel reveal" style="margin-top:1rem">
+    <h3>分流（route）</h3>
+    <p>同時符合兩點才是 <span class="tag a">auto</span>：細項屬於可交給 AI 的 10 項（產品資訊、旅遊規定、取消規定、訂單狀態、退款進度、文件補寄、點數查詢、服務抱怨、廠商來信、無關信件），且急迫性與影響度都不是高。其餘一律 <span class="tag h">human</span>。分類把握不足時歸為「無法判斷」，交人工。</p>
+  </div>
+</section>
+
+<!-- 04 Pipeline & 決策模型 -->
+<section class="slide">
+  <div class="kicker reveal">04 · Pipeline、決策模型與資料夾</div>
+  <h2 class="reveal">Pipeline 與決策模型的選擇</h2>
+  <div class="grid2" style="align-items:start">
+    <div>
+      <svg viewBox="0 0 560 280" width="100%">
+        <defs></defs>
+        <g class="node" style="opacity:0">
+          <rect x="10" y="20" width="160" height="56" rx="10" fill="#EEF3FA" stroke="#1D4E89" stroke-width="1.5"/>
+          <text x="90" y="46" text-anchor="middle" font-size="15" font-weight="700" fill="#1D4E89">工單 CSV</text>
+          <text x="90" y="64" text-anchor="middle" font-size="12" fill="#6B7785">前 6 欄</text>
+        </g>
+        <g class="node" style="opacity:0">
+          <rect x="200" y="20" width="160" height="56" rx="10" fill="#EEF3FA" stroke="#1D4E89" stroke-width="1.5"/>
+          <text x="280" y="46" text-anchor="middle" font-size="15" font-weight="700" fill="#1D4E89">前處理</text>
+          <text x="280" y="64" text-anchor="middle" font-size="12" fill="#6B7785">去空白、去 HTML</text>
+        </g>
+        <g class="node" style="opacity:0">
+          <rect x="390" y="20" width="160" height="56" rx="10" fill="#1D4E89"/>
+          <text x="470" y="46" text-anchor="middle" font-size="15" font-weight="700" fill="#fff">System One 決策模型</text>
+          <text x="470" y="64" text-anchor="middle" font-size="12" fill="#DCE6F3">地端，每筆 3 題</text>
+        </g>
+        <g class="node" style="opacity:0">
+          <rect x="390" y="120" width="160" height="56" rx="10" fill="#FDF1EA" stroke="#E07A3F" stroke-width="1.5"/>
+          <text x="470" y="146" text-anchor="middle" font-size="15" font-weight="700" fill="#B35A26">分流規則</text>
+          <text x="470" y="164" text-anchor="middle" font-size="12" fill="#6B7785">白名單 → route</text>
+        </g>
+        <g class="node" style="opacity:0">
+          <rect x="200" y="120" width="160" height="56" rx="10" fill="#EEF3FA" stroke="#1D4E89" stroke-width="1.5"/>
+          <text x="280" y="146" text-anchor="middle" font-size="15" font-weight="700" fill="#1D4E89">佇列排序</text>
+          <text x="280" y="164" text-anchor="middle" font-size="12" fill="#6B7785">急迫性 → 影響度</text>
+        </g>
+        <g class="node" style="opacity:0">
+          <rect x="10" y="220" width="200" height="50" rx="10" fill="#FDF1EA" stroke="#E07A3F" stroke-width="1.5"/>
+          <text x="110" y="244" text-anchor="middle" font-size="15" font-weight="700" fill="#B35A26">triage_result.csv</text>
+          <text x="110" y="261" text-anchor="middle" font-size="12" fill="#6B7785">＋ review.html</text>
+        </g>
+        <line class="arrow" pathLength="1" x1="170" y1="48" x2="190" y2="48" stroke="#E07A3F" stroke-width="2" stroke-dasharray="1" stroke-dashoffset="1"/>
+        <polygon class="tri" points="198,48 190,43 190,53" fill="#E07A3F" style="opacity:0"/>
+        <line class="arrow" pathLength="1" x1="360" y1="48" x2="380" y2="48" stroke="#E07A3F" stroke-width="2" stroke-dasharray="1" stroke-dashoffset="1"/>
+        <polygon class="tri" points="388,48 380,43 380,53" fill="#E07A3F" style="opacity:0"/>
+        <line class="arrow" pathLength="1" x1="470" y1="76" x2="470" y2="110" stroke="#E07A3F" stroke-width="2" stroke-dasharray="1" stroke-dashoffset="1"/>
+        <polygon class="tri" points="470,118 465,110 475,110" fill="#E07A3F" style="opacity:0"/>
+        <line class="arrow" pathLength="1" x1="390" y1="148" x2="370" y2="148" stroke="#E07A3F" stroke-width="2" stroke-dasharray="1" stroke-dashoffset="1"/>
+        <polygon class="tri" points="362,148 370,143 370,153" fill="#E07A3F" style="opacity:0"/>
+        <line class="arrow" pathLength="1" x1="280" y1="176" x2="158.6" y2="215.2" stroke="#E07A3F" stroke-width="2" stroke-dasharray="1" stroke-dashoffset="1"/>
+        <polygon class="tri" points="150,218 157.2,210.9 160,219.5" fill="#E07A3F" style="opacity:0"/>
+      </svg>
+      <div class="panel reveal" style="margin-top:0.6rem">
+        <h3>為什麼用 System One，而不是 LLM</h3>
+        <ul>
+          <li><strong>只做選擇題</strong>：輸出是給定選項的機率與信心，不生成文字，不會自創類別或格式錯誤。</li>
+          <li><strong>信心可用</strong>：每個選項都有機率，可以直接判斷要不要轉人工。</li>
+          <li><strong>地端執行</strong>：用 llama.cpp 在內網跑，工單不出內網，符合法務限制。</li>
+          <li><strong>代價</strong>：信心是否可靠要靠評估驗證，這是接下來要檢驗的地方。</li>
+        </ul>
+      </div>
+    </div>
+    <div class="reveal">
+      <pre>T 旅遊 / playground-fde/
+├── take-home-exam.md
+├── answers.md            # Part 1、2、4
+├── category-spec.md      # 類別與 route 定義
+└── poc/
+    ├── README.md
+    ├── triage.py         # CLI 入口
+    ├── evaluate.py       # 評估與 review.html
+    ├── review_template.html
+    ├── pipeline/
+    │   ├── preprocess.py
+    │   ├── models.py     # 呼叫 System One
+    │   └── router.py     # 分流規則與排序
+    ├── config/
+    │   ├── labels.toml   # 3 題的選項描述
+    │   └── routing.toml  # 白名單與理由
+    ├── data/
+    │   ├── sample_tickets.csv
+    │   └── expected_labels.csv
+    └── output/
+        └── result-&lt;時間&gt;/
+            ├── triage_result.csv
+            ├── review.html
+            └── run.log</pre>
+    </div>
+  </div>
+</section>
+
+<!-- 05 數據 -->
+<section class="slide">
+  <div class="kicker reveal">05 · 數據</div>
+  <h2 class="reveal">最新一次實跑（48 筆）：細項與 route 的細部結果</h2>
+  <div class="grid4 reveal">
+    <div class="panel"><div class="label">細項準確率</div><div class="stat">45 ／ 48</div><p class="sub">93.8%</p></div>
+    <div class="panel"><div class="label">route 準確率</div><div class="stat">45 ／ 48</div><p class="sub">93.8%</p></div>
+    <div class="panel accent"><div class="label">False Auto</div><div class="stat good">0</div><p class="sub">紅線達成</p></div>
+    <div class="panel"><div class="label">平均處理時間</div><div class="stat">9.4 秒</div><p class="sub">每件 3 次模型呼叫</p></div>
+  </div>
+  <div class="grid2" style="margin-top:0.9rem">
+    <div class="reveal">
+      <h3>各細項結果（筆數與細項正確數）</h3>
+      <table class="compact">
+        <tr><th>細項（中文）</th><th class="num">筆數</th><th class="num">細項正確</th><th>標準 route</th></tr>
+        <tr><td>產品資訊</td><td class="num">5</td><td class="num">3</td><td><span class="tag a">auto</span></td></tr>
+        <tr><td>旅遊規定</td><td class="num">4</td><td class="num">4</td><td><span class="tag a">auto</span></td></tr>
+        <tr><td>取消規定</td><td class="num">1</td><td class="num">1</td><td><span class="tag a">auto</span></td></tr>
+        <tr><td>客製需求</td><td class="num">3</td><td class="num">3</td><td><span class="tag h">human</span></td></tr>
+        <tr><td>訂單狀態</td><td class="num">3</td><td class="num">3</td><td><span class="tag a">auto</span></td></tr>
+        <tr><td>退款進度</td><td class="num">1</td><td class="num">1</td><td><span class="tag a">auto</span></td></tr>
+        <tr><td>文件補寄</td><td class="num">2</td><td class="num">2</td><td><span class="tag h">human</span> ×1 <span class="tag a">auto</span> ×1</td></tr>
+        <tr><td>點數查詢</td><td class="num">1</td><td class="num">1</td><td><span class="tag a">auto</span></td></tr>
+        <tr><td>訂單變更</td><td class="num">7</td><td class="num">7</td><td><span class="tag h">human</span></td></tr>
+        <tr><td>資料更正</td><td class="num">3</td><td class="num">3</td><td><span class="tag h">human</span></td></tr>
+        <tr><td>帳號問題</td><td class="num">1</td><td class="num">1</td><td><span class="tag h">human</span></td></tr>
+        <tr><td>扣款異常</td><td class="num">3</td><td class="num">3</td><td><span class="tag h">human</span></td></tr>
+        <tr><td>旅途即時協助</td><td class="num">1</td><td class="num">1</td><td><span class="tag h">human</span></td></tr>
+        <tr><td>服務抱怨</td><td class="num">2</td><td class="num">2</td><td><span class="tag a">auto</span></td></tr>
+        <tr><td>賠償求償</td><td class="num">4</td><td class="num">4</td><td><span class="tag h">human</span></td></tr>
+        <tr><td>廠商來信</td><td class="num">4</td><td class="num">3</td><td><span class="tag a">auto</span></td></tr>
+        <tr><td>無關信件</td><td class="num">2</td><td class="num">2</td><td><span class="tag a">auto</span></td></tr>
+        <tr><td>無法判斷</td><td class="num">1</td><td class="num">1</td><td><span class="tag h">human</span></td></tr>
+      </table>
+    </div>
+    <div class="reveal">
+      <h3>route 分佈</h3>
+      <table class="compact">
+        <tr><th></th><th class="num">標準</th><th class="num">模型判斷</th></tr>
+        <tr><td>auto</td><td class="num">23</td><td class="num">20</td></tr>
+        <tr><td>human</td><td class="num">25</td><td class="num">28</td></tr>
+      </table>
+      <h3 style="margin-top:1rem">模型與標準不一致的 3 筆</h3>
+      <table class="compact">
+        <tr><th>工單</th><th>模型</th><th>原因</th></tr>
+        <tr><td>TK-1009 郵輪艙房</td><td>unclear，信心 0.41</td><td>機率被 custom_request 分散</td></tr>
+        <tr><td>TK-1036 JR PASS</td><td>unclear，信心 0.37</td><td>機率被 document 分散</td></tr>
+        <tr><td>TK-1017 巴士報價</td><td>custom_request，信心 0.63</td><td>供應商報價被讀成客製需求</td></tr>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- 06 檢討 -->
+<section class="slide">
+  <div class="kicker reveal">06 · 檢討</div>
+  <h2 class="reveal">未解問題：分類未達預期</h2>
+  <div style="max-width:900px">
+    <div class="reveal">
+      <div class="panel accent">
+        <h3>現況</h3>
+        <p>細項準確率 93.8%，有 3 筆與標準不一致，其中兩筆是信心分散、一筆是把供應商當成客製需求。這代表分類本身還不夠好，需要判斷問題出在哪裡。</p>
+      </div>
+      <div class="panel line" style="margin-top:0.9rem">
+        <h3>可能的原因與對應方向</h3>
+        <ul>
+          <li><strong>分類描述不夠精準</strong>：調整選項描述，或補上寄件人線索，例如寄件網域。</li>
+          <li><strong>模型對相近類別區分不足</strong>：用標註的歷史工單 finetune 模型。</li>
+          <li><strong>模型本身不適合這個任務</strong>：換不同模型，用同一份評估集比較。</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+</div>
+<div class="hint">← → 切換　·　點擊左右半邊也可切換</div>
+<div class="nav" id="nav"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/animejs@3.2.2/lib/anime.min.js"></script>
+<script>
+  (function () {
+    const slides = Array.from(document.querySelectorAll('.slide'));
+    const nav = document.getElementById('nav');
+    const progress = document.getElementById('progress');
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const hasAnime = typeof anime !== 'undefined' && !reduce;
+    let i = 0;
+
+    function resetSlide(slide) {
+      slide.querySelectorAll('.reveal').forEach(el => el.style.opacity = hasAnime ? 0 : 1);
+      slide.querySelectorAll('.node').forEach(el => { el.style.opacity = hasAnime ? 0 : 1; el.style.transform = ''; });
+      slide.querySelectorAll('.arrow').forEach(el => el.style.strokeDashoffset = hasAnime ? 1 : 0);
+      slide.querySelectorAll('.tri').forEach(el => el.style.opacity = hasAnime ? 0 : 1);
+    }
+
+    function enter(slide) {
+      if (!hasAnime) return;
+
+      anime({
+        targets: slide.querySelectorAll('.reveal'),
+        opacity: [0, 1],
+        translateY: [12, 0],
+        delay: anime.stagger(90, { start: 100 }),
+        duration: 450,
+        easing: 'easeOutQuad'
+      });
+
+      const nodes = slide.querySelectorAll('.node');
+      if (nodes.length) {
+        anime({
+          targets: nodes,
+          opacity: [0, 1],
+          translateY: [8, 0],
+          delay: anime.stagger(100, { start: 150 }),
+          duration: 400,
+          easing: 'easeOutQuad'
+        });
+        const arrows = slide.querySelectorAll('.arrow');
+        const tris = slide.querySelectorAll('.tri');
+        anime.timeline({ easing: 'easeInOutQuad' })
+          .add({ targets: arrows, strokeDashoffset: [1, 0], duration: 360, delay: anime.stagger(140, { start: 650 }) })
+          .add({ targets: tris, opacity: [0, 1], duration: 200, delay: anime.stagger(140) }, '-=260');
+      }
+    }
+
+    function show(n) {
+      i = Math.max(0, Math.min(slides.length - 1, n));
+      slides.forEach((s, k) => {
+        const active = k === i;
+        s.classList.toggle('active', active);
+        if (active) { resetSlide(s); enter(s); }
+      });
+      nav.textContent = (i + 1) + ' / ' + slides.length;
+      progress.style.width = ((i + 1) / slides.length * 100) + '%';
+    }
+
+    document.addEventListener('keydown', e => {
+      if (['ArrowRight', 'PageDown', ' '].includes(e.key)) { e.preventDefault(); show(i + 1); }
+      if (['ArrowLeft', 'PageUp'].includes(e.key)) { e.preventDefault(); show(i - 1); }
+      if (e.key === 'Home') show(0);
+      if (e.key === 'End') show(slides.length - 1);
+    });
+    document.getElementById('deck').addEventListener('click', e => {
+      show(e.clientX > window.innerWidth / 2 ? i + 1 : i - 1);
+    });
+    show(0);
+  })();
+</script>
+</body>
+</html>
